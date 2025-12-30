@@ -42,3 +42,17 @@ button[aria-label="Help"],
 .layer-ui__wrapper .help-button {
   display: none !important;
 }
+
+/* Responsive Custom Footer */
+@media (max-width: 480px) {
+  .custom-footer {
+    flex-direction: column !important;
+    gap: 5px !important;
+  }
+
+  .custom-footer button {
+    font-size: 0.7rem !important;
+    padding: 5px !important;
+    text-align: left !important;
+  }
+}

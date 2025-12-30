@@ -31,16 +31,34 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 .eq("id", roomId)
                 .single();
 
+            // Check for mobile/tablet width
+            const isMobile = window.innerWidth < 768;
+
+            // Prepare base appState overrides
+            const mobileOverrides = isMobile ? {
+                zenModeEnabled: true,
+                activeTool: { type: "hand", lastActiveTool: null, locked: false, customType: null },
+            } : {};
+
             if (error || !data) {
                 console.log("No previous drawing found, initializing new canvas.");
                 excalidrawAPI.updateScene({
                     elements: [],
-                    appState: { ...excalidrawAPI.getAppState(), collaborators: [], theme: "dark" }
+                    appState: {
+                        ...excalidrawAPI.getAppState(),
+                        collaborators: [],
+                        theme: "dark",
+                        ...mobileOverrides
+                    }
                 });
             } else if (data && data.elements && data.app_state) {
                 excalidrawAPI.updateScene({
                     elements: data.elements,
-                    appState: { ...data.app_state, theme: "dark" },
+                    appState: {
+                        ...data.app_state,
+                        theme: "dark",
+                        ...mobileOverrides
+                    },
                 });
             }
 
@@ -125,6 +143,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     libraryItems: [],
                 }}
                 UIOptions={{
+                    dockedSidebarBreakpoint: 768,
                     // @ts-ignore
                     helpDialog: { socials: false },
                     canvasActions: {
