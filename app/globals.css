@@ -1,26 +1,44 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #121212;
+  /* Match Excalidraw dark theme to prevent flash */
+}
+
+/* Hides the official Excalidraw store links and Library button */
+.publish-library-button,
+.library-menu-browse-button,
+.library-menu-help,
+.layer-ui__library,
+.layer-ui__wrapper .library-button {
+  display: none !important;
+}
+
+/* Hide Library Trigger */
+.layer-ui__wrapper .sidebar-trigger[aria-label*='Library'],
+.excalidraw .sidebar-trigger {
+  display: none !important;
+}
+
+/* Hide Help Dialog Social Links (Aggressive) */
+/* Hide Help Dialog Social Links (Aggressive) */
+.help-dialog .HelpDialog__social-links,
+.help-dialog .HelpDialog__btn-group,
+.help-dialog a[href*="github"],
+.help-dialog a[href*="youtube"],
+.help-dialog a[href*="discord"],
+.help-dialog a[href*="twitter"],
+.help-dialog a[href*="blog"],
+.HelpDialog .island-button,
+.HelpDialog .link-button,
+.App-menu__left .help-icon,
+button[aria-label="Help"],
+.layer-ui__wrapper .help-button {
+  display: none !important;
 }
