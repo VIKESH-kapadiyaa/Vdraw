@@ -1,14 +1,33 @@
 "use client";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "../lib/supabaseClient";
 
 export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Generate a random ID and redirect to it
-    const roomId = crypto.randomUUID();
-    router.push(`/room/${roomId}`);
+    const createRoom = async () => {
+      // Generate a random ID
+      const roomId = crypto.randomUUID();
+
+      // Create the room in Supabase (database-backed)
+      const { error } = await supabase
+        .from('rooms')
+        .insert({ id: roomId });
+
+      if (error) {
+        console.error("Error creating room:", error);
+      } else {
+        // Mark this user as the host locally
+        localStorage.setItem(`vdraw-host-${roomId}`, 'true');
+      }
+
+      // Redirect to the new room
+      router.push(`/room/${roomId}`);
+    };
+
+    createRoom();
   }, [router]);
 
   return (

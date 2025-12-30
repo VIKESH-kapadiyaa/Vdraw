@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Excalidraw, MainMenu, WelcomeScreen, Footer } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { supabase } from "../lib/supabaseClient";
@@ -13,15 +13,104 @@ import debounce from "lodash.debounce";
 export default function Whiteboard({ roomId }: { roomId: string }) {
     const [mounted, setMounted] = useState(false);
     const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
+    const channelRef = useRef<any>(null);
+    const isReceivingUpdate = useRef(false);
+
+    // Access Control State
+    const [isHost, setIsHost] = useState(false);
+    const [hasAccess, setHasAccess] = useState(false);
+    const [requests, setRequests] = useState<string[]>([]);
+    const myId = useRef(typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString());
 
     useEffect(() => {
         setMounted(true);
         // @ts-ignore
         // window.EXCALIDRAW_ASSET_PATH = "/"; 
-    }, []);
+
+        // Check Access Permissions
+        const isOwner = localStorage.getItem(`vdraw-host-${roomId}`) === 'true';
+        const canEnter = localStorage.getItem(`vdraw-access-${roomId}`) === 'true';
+
+        setIsHost(isOwner);
+        if (isOwner || canEnter) {
+            setHasAccess(true);
+        }
+    }, [roomId]);
+
+    // Initialize Realtime Channel
+    useEffect(() => {
+        if (!roomId) return; // Channel can init without API for negotiating access
+
+        const channel = supabase.channel(roomId)
+            .on('broadcast', { event: 'request-access' }, (payload) => {
+                const amIHost = localStorage.getItem(`vdraw-host-${roomId}`) === 'true';
+                if (amIHost) {
+                    setRequests(prev => {
+                        if (!prev.includes(payload.payload.requesterId)) {
+                            return [...prev, payload.payload.requesterId];
+                        }
+                        return prev;
+                    });
+                }
+            })
+            .on('broadcast', { event: 'grant-access' }, (payload) => {
+                if (payload.payload.targetId === myId.current) {
+                    setHasAccess(true);
+                    localStorage.setItem(`vdraw-access-${roomId}`, 'true');
+                }
+            })
+            .on('broadcast', { event: 'draw-update' }, (payload) => {
+                if (!excalidrawAPI) return;
+
+                isReceivingUpdate.current = true;
+                const { elements, appState } = payload.payload;
+                excalidrawAPI.updateScene({
+                    elements,
+                    appState: { ...appState, collaborators: [] }
+                });
+                setTimeout(() => isReceivingUpdate.current = false, 0);
+            })
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log(`Connected to Realtime channel: ${roomId}`);
+                }
+            });
+
+        channelRef.current = channel;
+
+        return () => {
+            supabase.removeChannel(channel);
+            channelRef.current = null;
+        };
+    }, [roomId, excalidrawAPI]);
+
+    // Helper: Request Access
+    const requestAccess = async () => {
+        if (!channelRef.current) {
+            alert("Waiting for connection...");
+            return;
+        }
+        await channelRef.current.send({
+            type: 'broadcast',
+            event: 'request-access',
+            payload: { requesterId: myId.current }
+        });
+        alert("Request sent! Waiting for host approval...");
+    };
+
+    // Helper: Grant Access
+    const grantAccess = async (targetId: string) => {
+        if (!channelRef.current) return;
+        await channelRef.current.send({
+            type: 'broadcast',
+            event: 'grant-access',
+            payload: { targetId }
+        });
+        setRequests(prev => prev.filter(id => id !== targetId)); // Remove from pending
+    };
 
     useEffect(() => {
-        if (!excalidrawAPI || !roomId) return;
+        if (!excalidrawAPI || !roomId || !hasAccess) return;
 
         const loadDrawing = async () => {
             // Load saved drawing
@@ -100,7 +189,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         };
 
         loadDrawing();
-    }, [excalidrawAPI, roomId]);
+    }, [excalidrawAPI, roomId, hasAccess]);
 
     const saveDrawing = async (elements: any, appState: any) => {
         // Reset collaborators to an array so it can be saved as JSON
@@ -116,21 +205,62 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
 
         if (error) {
             console.error("Error saving drawing:", error);
-        } else {
-            console.log("Drawing saved successfully", data);
         }
     };
 
     // Debounce the save function to run at most once every 2 seconds
     const debouncedSave = useCallback(
         debounce((elements, appState) => saveDrawing(elements, appState), 2000),
-        [roomId] // Re-create debounce if roomId changes
+        [roomId]
     );
+
+    // Broadcast changes to peers (Throttled)
+    const broadcastDrawing = async (elements: any, appState: any) => {
+        if (!channelRef.current || isReceivingUpdate.current) return;
+
+        await channelRef.current.send({
+            type: 'broadcast',
+            event: 'draw-update',
+            payload: {
+                elements,
+                appState: {
+                    viewBackgroundColor: appState.viewBackgroundColor
+                }
+            }
+        });
+    };
+
+    const throttledBroadcast = useCallback(
+        debounce((elements, appState) => broadcastDrawing(elements, appState), 100), // 100ms throttle-like behavior
+        []
+    );
+
+    const handleChange = (elements: any, appState: any) => {
+        if (isReceivingUpdate.current) return;
+
+        debouncedSave(elements, appState);
+        throttledBroadcast(elements, appState);
+    };
 
     if (!mounted) {
         return (
             <div className="flex items-center justify-center h-screen w-screen bg-neutral-900 text-white font-bold text-xl">
                 Loading Vdraw...
+            </div>
+        );
+    }
+
+    if (!hasAccess) {
+        return (
+            <div className="flex flex-col items-center justify-center h-screen w-screen bg-neutral-900 text-white p-4">
+                <div className="mb-4 text-2xl font-bold">🔒 Waiting Room</div>
+                <p className="mb-6 opacity-80">This room is private. Ask the host to let you in.</p>
+                <button
+                    onClick={requestAccess}
+                    className="px-6 py-3 bg-violet-600 rounded-lg hover:bg-violet-700 transition"
+                >
+                    🚪 Knock to Enter
+                </button>
             </div>
         );
     }
@@ -148,7 +278,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     helpDialog: { socials: false },
                     canvasActions: {
                         changeViewBackgroundColor: true,
-                        clearCanvas: true,
+                        clearCanvas: true, // Allow host to clear? Everyone can clear basically.
                         loadScene: false, // Disable external file loading
                         saveToActiveFile: false, // Disable saving to active file
                         toggleTheme: true,
@@ -157,7 +287,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 }}
                 excalidrawAPI={(api) => setExcalidrawAPI(api)}
                 theme="dark"
-                onChange={(elements, appState) => debouncedSave(elements, appState)}
+                onChange={(elements, appState) => handleChange(elements, appState)}
             >
                 <WelcomeScreen>
                     <WelcomeScreen.Center>
@@ -296,6 +426,26 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     </div>
                 </Footer>
             </Excalidraw>
+
+            {/* Host Requests Panel */}
+            {isHost && requests.length > 0 && (
+                <div className="absolute top-4 right-4 bg-neutral-800 text-white p-4 rounded-lg shadow-lg z-50 w-64">
+                    <h3 className="font-bold mb-2">🔔 Join Requests</h3>
+                    <div className="flex flex-col gap-2">
+                        {requests.map((reqId) => (
+                            <div key={reqId} className="flex items-center justify-between text-sm bg-neutral-700 p-2 rounded">
+                                <span>Guest {reqId.slice(0, 4)}</span>
+                                <button
+                                    onClick={() => grantAccess(reqId)}
+                                    className="px-2 py-1 bg-green-600 text-xs rounded hover:bg-green-700"
+                                >
+                                    Allow
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
