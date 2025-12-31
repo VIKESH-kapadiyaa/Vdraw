@@ -169,6 +169,29 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         };
     }, [roomId, excalidrawAPI, loadDrawing]); // Added loadDrawing dep
 
+    // Branding: Rename Menu Items
+    useEffect(() => {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === 1 && (node as HTMLElement).textContent?.includes("Mermaid to Excalidraw")) {
+                        const walker = document.createTreeWalker(node, 4); // NodeFilter.SHOW_TEXT
+                        let textNode;
+                        while (textNode = walker.nextNode()) {
+                            if (textNode.nodeValue === "Mermaid to Excalidraw") {
+                                textNode.nodeValue = "Mermaid to Vdraw";
+                            }
+                        }
+                    }
+                });
+            });
+        });
+        if (typeof document !== 'undefined') {
+            observer.observe(document.body, { childList: true, subtree: true });
+        }
+        return () => observer.disconnect();
+    }, []);
+
     // Initial Load
     useEffect(() => {
         if (hasAccess && excalidrawAPI) {
@@ -464,13 +487,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 )}
             </AnimatePresence>
 
-            {/* CSS override to hide "Mermaid to Excalidraw" menu item if possible */}
-            <style jsx global>{`
-                .dropdown-menu-item[aria-label="Mermaid to Excalidraw"],
-                button[aria-label="Mermaid to Excalidraw"] {
-                    display: none !important;
-                }
-            `}</style>
+
         </div>
     );
 }
