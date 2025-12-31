@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Check, Star, Zap, ArrowLeft, Loader2 } from "lucide-react";
+import { Check, Star, Zap, ArrowLeft, Loader2, AlertTriangle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
@@ -80,8 +80,8 @@ export default function PricingPage() {
                 }
             },
             prefill: {
-                name: "Vdraw User",
-                email: "user@example.com",
+                name: "Test User",
+                email: "test@example.com",
                 contact: "9999999999"
             },
             theme: {
@@ -118,6 +118,23 @@ export default function PricingPage() {
 
             {/* Main Content */}
             <main className="flex-1 flex flex-col items-center justify-center p-6 relative z-10">
+
+                {/* Test Mode Banner */}
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-violet-500/10 border border-violet-500/20 text-violet-200 px-6 py-4 rounded-xl mb-12 flex gap-4 items-start max-w-2xl"
+                >
+                    <ShieldCheck className="shrink-0 w-6 h-6 text-violet-400" />
+                    <div>
+                        <h4 className="font-bold text-white mb-1">Developer Test Mode is Active</h4>
+                        <p className="text-sm opacity-80 leading-relaxed">
+                            You are using the Razorpay Test Environment. Real cards will be rejected. <br />
+                            <strong>To pay successfully:</strong> Select <u>Netbanking</u> option in the popup, choose any bank, and it will succeed instantly.
+                        </p>
+                    </div>
+                </motion.div>
+
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
