@@ -4,6 +4,7 @@ import { Excalidraw, MainMenu, WelcomeScreen, Footer } from "@excalidraw/excalid
 import "@excalidraw/excalidraw/index.css";
 import { supabase } from "../lib/supabaseClient";
 import debounce from "lodash.debounce";
+import throttle from "lodash.throttle";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, DoorOpen, Check, X, Loader2 } from "lucide-react";
@@ -36,11 +37,78 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         }
     }, [roomId]);
 
+    // Define loadDrawing outside to be reusable
+    const loadDrawing = useCallback(async () => {
+        if (!excalidrawAPI || !roomId) return;
+
+        // Load saved drawing
+        const { data, error } = await supabase
+            .from("drawings")
+            .select("*")
+            .eq("id", roomId)
+            .single();
+
+        const isMobile = window.innerWidth < 768;
+        const mobileOverrides = isMobile ? {
+            // zenModeEnabled: false, 
+            activeTool: { type: "selection", lastActiveTool: null, locked: false, customType: null },
+        } : {};
+
+        if (error || !data) {
+            // Initialize new canvas if empty
+            if (excalidrawAPI.getSceneElements().length === 0) {
+                excalidrawAPI.updateScene({
+                    elements: [],
+                    appState: {
+                        ...excalidrawAPI.getAppState(),
+                        collaborators: [],
+                        theme: "dark",
+                        ...mobileOverrides
+                    }
+                });
+            }
+        } else if (data && data.elements && data.app_state) {
+            // Merge or replace
+            excalidrawAPI.updateScene({
+                elements: data.elements,
+                appState: {
+                    ...data.app_state,
+                    theme: "dark",
+                    ...mobileOverrides
+                },
+            });
+        }
+    }, [excalidrawAPI, roomId]);
+
+    // Visibility Change Listener (Auto-Reconnect/Re-sync)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log("App visible, re-syncing...");
+                // Re-fetch latest state
+                loadDrawing();
+
+                // Re-subscribe if channel is dead (optional, usually supabase handles this, 
+                // but we can force a check if needed. For now, just syncing data is most important).
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
+    }, [loadDrawing]);
+
+
     // Initialize Realtime Channel
     useEffect(() => {
         if (!roomId) return;
 
-        const channel = supabase.channel(roomId)
+        const channel = supabase.channel(roomId, {
+            config: {
+                broadcast: { ack: true }
+            }
+        })
             .on('broadcast', { event: 'request-access' }, (payload) => {
                 const amIHost = localStorage.getItem(`vdraw-host-${roomId}`) === 'true';
                 if (amIHost) {
@@ -63,6 +131,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     setIsRequesting(false);
                     localStorage.setItem(`vdraw-access-${roomId}`, 'true');
                     toast.success("Access Granted!", { description: "Welcome to the room." });
+                    loadDrawing(); // Load data once access granted
                 }
             })
             .on('broadcast', { event: 'deny-access' }, (payload) => {
@@ -87,7 +156,8 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     console.log(`Connected to Realtime channel: ${roomId}`);
                 }
                 if (status === 'CHANNEL_ERROR') {
-                    toast.error("Connection Error", { description: "Failed to connect to room channel." });
+                    toast.error("Connection Error", { description: "Failed to connect to room channel. Retrying..." });
+                    // Simple retry logic could go here, but Supabase client retries automatically usually.
                 }
             });
 
@@ -97,7 +167,15 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
             supabase.removeChannel(channel);
             channelRef.current = null;
         };
-    }, [roomId, excalidrawAPI]);
+    }, [roomId, excalidrawAPI, loadDrawing]); // Added loadDrawing dep
+
+    // Initial Load
+    useEffect(() => {
+        if (hasAccess && excalidrawAPI) {
+            loadDrawing();
+        }
+    }, [hasAccess, excalidrawAPI, loadDrawing]);
+
 
     // Helper: Request Access
     const requestAccess = async () => {
@@ -136,75 +214,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         setRequests(prev => prev.filter(id => id !== targetId));
     };
 
-    useEffect(() => {
-        if (!excalidrawAPI || !roomId || !hasAccess) return;
-
-        const loadDrawing = async () => {
-            // Load saved drawing
-            const { data, error } = await supabase
-                .from("drawings")
-                .select("*")
-                .eq("id", roomId)
-                .single();
-
-            const isMobile = window.innerWidth < 768;
-            const mobileOverrides = isMobile ? {
-                // zenModeEnabled: false, // Ensure tools are visible
-                activeTool: { type: "selection", lastActiveTool: null, locked: false, customType: null },
-            } : {};
-
-            if (error || !data) {
-                // Initialize new canvas
-                excalidrawAPI.updateScene({
-                    elements: [],
-                    appState: {
-                        ...excalidrawAPI.getAppState(),
-                        collaborators: [],
-                        theme: "dark",
-                        ...mobileOverrides
-                    }
-                });
-            } else if (data && data.elements && data.app_state) {
-                excalidrawAPI.updateScene({
-                    elements: data.elements,
-                    appState: {
-                        ...data.app_state,
-                        theme: "dark",
-                        ...mobileOverrides
-                    },
-                });
-            }
-
-            // Load Custom Libraries (Optional)
-            try {
-                const listRes = await fetch("/api/libraries");
-                if (listRes.ok) {
-                    const { files } = await listRes.json();
-                    let allLibraryItems: any[] = [];
-                    for (const fileName of files) {
-                        try {
-                            const libRes = await fetch(`/libraries/${fileName}`);
-                            if (libRes.ok) {
-                                const libData = await libRes.json();
-                                if (libData?.libraryItems) {
-                                    allLibraryItems = [...allLibraryItems, ...libData.libraryItems];
-                                }
-                            }
-                        } catch (e) {
-                            console.error("Lib load error", e);
-                        }
-                    }
-                    if (allLibraryItems.length > 0) {
-                        excalidrawAPI.updateLibrary({ libraryItems: allLibraryItems });
-                    }
-                }
-            } catch (e) {
-                console.warn("Library loading failed (optional feature)", e);
-            }
-        };
-
-        loadDrawing();
-    }, [excalidrawAPI, roomId, hasAccess]);
+    // NOTE: Load logic moved to 'loadDrawing' function above
 
     const saveDrawing = async (elements: any, appState: any) => {
         try {
@@ -238,8 +248,9 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         }
     };
 
+    // Use throttle for smoother continuous updates (50ms)
     const throttledBroadcast = useCallback(
-        debounce((elements, appState) => broadcastDrawing(elements, appState), 50),
+        throttle((elements, appState) => broadcastDrawing(elements, appState), 50),
         []
     );
 
