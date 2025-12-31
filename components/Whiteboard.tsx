@@ -149,8 +149,8 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
 
             const isMobile = window.innerWidth < 768;
             const mobileOverrides = isMobile ? {
-                zenModeEnabled: true,
-                activeTool: { type: "hand", lastActiveTool: null, locked: false, customType: null },
+                // zenModeEnabled: false, // Ensure tools are visible
+                activeTool: { type: "selection", lastActiveTool: null, locked: false, customType: null },
             } : {};
 
             if (error || !data) {
@@ -396,10 +396,10 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
             <AnimatePresence>
                 {isHost && requests.length > 0 && (
                     <motion.div
-                        initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                        className="absolute top-16 left-4 right-4 md:left-auto md:w-72 md:top-4 z-50 mx-auto md:mx-0"
+                        exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                        className="absolute bottom-24 left-4 right-4 md:left-auto md:bottom-auto md:w-72 md:top-4 z-50 mx-auto md:mx-0"
                     >
                         <div className="bg-neutral-900/90 backdrop-blur-md border border-violet-500/30 rounded-2xl shadow-2xl overflow-hidden">
                             <div className="p-4 border-b border-white/5 bg-violet-500/10 flex items-center justify-between">
