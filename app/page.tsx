@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
-import { Loader2, ArrowRight, Zap, Layout, Play } from "lucide-react";
+import { Loader2, ArrowRight, Zap, Layout, Play, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -10,62 +10,76 @@ import { motion } from "framer-motion";
 export default function LandingPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [credits, setCredits] = useState<number | null>(null);
+  const [isPro, setIsPro] = useState(false);
   const userIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // 1. Initialize User ID on Mount
+    // 1. Initialize User ID & Fetch Credits
     let storedId = localStorage.getItem("vdraw-user-id");
     if (!storedId) {
       storedId = crypto.randomUUID();
       localStorage.setItem("vdraw-user-id", storedId);
     }
     userIdRef.current = storedId;
+
+    const fetchCredits = async () => {
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder")) return;
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('usage_count, subscription_status')
+        .eq('id', storedId)
+        .single();
+
+      if (data) {
+        setCredits(data.usage_count || 0);
+        setIsPro(data.subscription_status === 'pro');
+      } else {
+        setCredits(0);
+      }
+    };
+
+    fetchCredits();
   }, []);
 
   const handleCreateRoom = async () => {
     if (!userIdRef.current) return;
     setLoading(true);
 
-    // Env Check
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder")) {
-      toast.error("Setup Error", { description: "Missing Supabase URL" });
-      setLoading(false);
-      return;
-    }
-
     try {
-      // 2. Check Profile
-      const { data: profile, error } = await supabase
+      // 2. Check Profile Live
+      const { data: profile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userIdRef.current)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error("DB Error", error);
-        toast.error("Connection Failed", { description: "Could not verify account." });
-        setLoading(false);
-        return;
-      }
-
       const usage = profile?.usage_count || 0;
       const status = profile?.subscription_status || 'free';
 
-      // 3. Gatekeeper Logic
+      // 3. Strict Gatekeeper (Allows exactly 2)
       if (usage >= 2 && status !== 'pro') {
-        toast.info("Free Limit Reached", { description: "Upgrade to create more rooms." });
+        toast.info("Free Limit Reached", { description: "You have used your 2 free credits." });
         router.push('/pricing');
         return;
       }
 
-      // 4. Increment Usage
-      const { error: upsertError } = await supabase.from('profiles').upsert({
+      // 4. Update Usage
+      // If 1st use (0) -> become 1.
+      // If 2nd use (1) -> become 2.
+      const newUsage = usage + 1;
+      await supabase.from('profiles').upsert({
         id: userIdRef.current,
-        usage_count: usage + 1,
+        usage_count: newUsage,
         updated_at: new Date().toISOString()
       });
 
-      if (upsertError) throw upsertError;
+      // Feedback
+      if (status !== 'pro') {
+        if (newUsage === 1) toast.success(`Room Created!`, { description: "1/2 Free Credits Used" });
+        if (newUsage === 2) toast.warning(`Last Free Credit Used!`, { description: "Next room requires Pro plan." });
+      }
 
       // 5. Create Room
       const roomId = crypto.randomUUID();
@@ -99,7 +113,7 @@ export default function LandingPage() {
         </div>
         <div className="flex items-center gap-6">
           <Link href="/pricing" className="text-neutral-400 hover:text-white transition font-medium">Pricing</Link>
-          <Link href="/pricing" className="text-neutral-400 hover:text-white transition font-medium">Log In</Link>
+          {isPro && <div className="text-xs font-bold bg-violet-500/20 text-violet-300 px-2 py-1 rounded">PRO ACTIVE</div>}
         </div>
       </nav>
 
@@ -120,24 +134,34 @@ export default function LandingPage() {
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-fuchsia-400">Sync Instantly.</span>
           </h1>
 
-          <p className="text-lg md:text-xl text-neutral-400 mb-10 max-w-2xl mx-auto leading-relaxed">
-            The fastest way to visualize ideas with your team. No signup required for guests.
-            Real-time collaboration with infinite canvas.
+          <p className="text-lg md:text-xl text-neutral-400 mb-8 max-w-2xl mx-auto leading-relaxed">
+            The fastest way to visualize ideas with your team. Zero friction collaboration.
           </p>
+
+          {/* Credit Counter Badge */}
+          {!isPro && credits !== null && (
+            <div className="mb-8 inline-flex items-center gap-2 bg-neutral-900 border border-neutral-800 px-4 py-2 rounded-full">
+              {credits >= 2 ? (
+                <span className="text-red-400 flex items-center gap-2"><ShieldAlert className="w-4 h-4" /> 0 Free Credits Left</span>
+              ) : (
+                <span className="text-neutral-300">Free Credits Used: <span className="text-white font-bold">{credits}/2</span></span>
+              )}
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
               onClick={handleCreateRoom}
               disabled={loading}
-              className="group relative px-8 py-4 bg-white text-black font-bold rounded-xl text-lg hover:bg-neutral-200 transition-all active:scale-95 disabled:opacity-70 disabled:pointer-events-none"
+              className="group relative px-8 py-4 bg-white text-black font-bold rounded-xl text-lg hover:bg-neutral-200 transition-all active:scale-95 disabled:opacity-70 disabled:pointer-events-none min-w-[200px]"
             >
               {loading ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin" /> Creating...
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" /> Check...
                 </span>
               ) : (
-                <span className="flex items-center gap-2">
-                  Start Drawing <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                <span className="flex items-center justify-center gap-2">
+                  {(!isPro && credits !== null && credits >= 2) ? "Upgrade to Draw" : "Start Drawing"} <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </span>
               )}
 
@@ -152,29 +176,7 @@ export default function LandingPage() {
             </Link>
           </div>
         </motion.div>
-
-        {/* Social Proof / Stats */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-16 border-t border-white/5 pt-10"
-        >
-          <Stat label="Active Users" value="10k+" />
-          <Stat label="Drawings Created" value="50k+" />
-          <Stat label="Latency" value="< 50ms" />
-          <Stat label="Uptime" value="99.9%" />
-        </motion.div>
       </main>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string, value: string }) {
-  return (
-    <div className="text-center">
-      <div className="text-2xl md:text-3xl font-bold text-white mb-1">{value}</div>
-      <div className="text-sm text-neutral-500 uppercase tracking-wider">{label}</div>
     </div>
   );
 }
