@@ -27,6 +27,8 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+import { Toaster } from "sonner";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,6 +39,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <Toaster position="top-center" richColors theme="dark" />
         {children}
       </body>
     </html>
