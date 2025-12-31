@@ -268,7 +268,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="z-10 bg-neutral-900/50 backdrop-blur-xl border border-white/10 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center"
+                    className="z-10 bg-neutral-900/50 backdrop-blur-xl border border-white/10 p-6 md:p-8 rounded-2xl shadow-2xl w-[90%] max-w-md text-center"
                 >
                     <div className="mx-auto w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mb-6 border border-white/5 shadow-inner">
                         <Lock className="w-8 h-8 text-neutral-400" />
@@ -396,10 +396,10 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
             <AnimatePresence>
                 {isHost && requests.length > 0 && (
                     <motion.div
-                        initial={{ opacity: 0, x: 50, scale: 0.95 }}
-                        animate={{ opacity: 1, x: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: 50, scale: 0.95 }}
-                        className="absolute top-4 right-4 z-50 w-72"
+                        initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                        className="absolute top-16 left-4 right-4 md:left-auto md:w-72 md:top-4 z-50 mx-auto md:mx-0"
                     >
                         <div className="bg-neutral-900/90 backdrop-blur-md border border-violet-500/30 rounded-2xl shadow-2xl overflow-hidden">
                             <div className="p-4 border-b border-white/5 bg-violet-500/10 flex items-center justify-between">
