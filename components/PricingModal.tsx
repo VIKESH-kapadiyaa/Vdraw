@@ -36,7 +36,7 @@ export default function PricingModal({ isOpen, onClose, userId, onSuccess }: Pri
 
         const amount = planType === 'monthly' ? 199 : 1400; // INR
         const options = {
-            key: "rzp_test_PLACEHOLDER_KEY", // REPLACE WITH YOUR KEY
+            key: "rzp_test_RyCvnQbt3IlAbf", // REPLACE WITH YOUR KEY
             amount: amount * 100, // Amount in paise
             currency: "INR",
             name: "Vdraw Pro",
