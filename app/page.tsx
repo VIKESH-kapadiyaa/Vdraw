@@ -24,7 +24,17 @@ export default function Home() {
     const checkAccessAndCreate = async () => {
       if (!userIdRef.current) return;
 
+      // Env Check
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder")) {
+        toast.error("Configuration Error", { description: "Supabase Environment Variables are missing!" });
+        console.error("Missing NEXT_PUBLIC_SUPABASE_URL");
+        setChecking(false);
+        return;
+      }
+
       try {
+        console.log("Checking profile for:", userIdRef.current);
+
         // 2. Check Profile
         const { data: profile, error } = await supabase
           .from('profiles')
@@ -32,9 +42,19 @@ export default function Home() {
           .eq('id', userIdRef.current)
           .single();
 
+        if (error && error.code !== 'PGRST116') { // Ignore "Row not found" (PGRST116)
+          console.error("Profile Fetch Error", error);
+          toast.error("Database connection failed", { description: error.message });
+          setChecking(false); // Stop loading so they see the error
+          return;
+        }
+
         // Default values if no profile yet
         const usage = profile?.usage_count || 0;
         const status = profile?.subscription_status || 'free';
+
+        console.log("Status:", status, "Usage:", usage);
+        toast(`Usage: ${usage}/2`, { duration: 2000, position: 'bottom-right' });
 
         // 3. Gatekeeper Logic
         if (usage >= 2 && status !== 'pro') {
@@ -44,12 +64,19 @@ export default function Home() {
         }
 
         // 4. Increment Usage & Create Room
-        // Upsert profile to ensure it exists and increment usage
-        await supabase.from('profiles').upsert({
+        const { error: upsertError } = await supabase.from('profiles').upsert({
           id: userIdRef.current,
           usage_count: usage + 1,
           updated_at: new Date().toISOString()
         });
+
+        if (upsertError) {
+          console.error("Upsert Error", upsertError);
+          toast.error("Could not save usage", { description: upsertError.message });
+          // Stop here to debug
+          setChecking(false);
+          return;
+        }
 
         // Create Room
         const roomId = crypto.randomUUID();
@@ -61,15 +88,10 @@ export default function Home() {
         // Redirect
         router.push(`/room/${roomId}`);
 
-      } catch (err) {
-        console.error("Error in gatekeeper", err);
-        // Fallback: Just let them in if DB fails (fail open) vs fail closed.
-        // For now, let's create room to avoid blocking users on error? 
-        // Or show error. Let's redirect to a safe room or retry.
-        // Just create room as fallback
-        const roomId = crypto.randomUUID();
-        localStorage.setItem(`vdraw-host-${roomId}`, 'true');
-        router.push(`/room/${roomId}`);
+      } catch (err: any) {
+        console.error("Fatal Gatekeeper Error", err);
+        toast.error("Application Error", { description: err.message || "Unknown error" });
+        setChecking(false);
       }
     };
 
@@ -94,14 +116,31 @@ export default function Home() {
         </>
       ) : (
         <div className="text-center p-6">
-          <h1 className="text-3xl font-bold text-white mb-4">You've reached the free limit!</h1>
-          <p className="text-neutral-400 mb-8">Upgrade to Vdraw Pro to create unlimited rooms.</p>
-          <button
-            onClick={() => setShowPricing(true)}
-            className="px-6 py-3 bg-violet-600 rounded-lg hover:bg-violet-700 transition font-bold"
-          >
-            View Plans
-          </button>
+          {!showPricing && (
+            <>
+              <h1 className="text-3xl font-bold text-white mb-4">Connection Failed</h1>
+              <p className="text-neutral-400 mb-8">Could not verify access. Please check the logs.</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-6 py-2 bg-neutral-800 rounded-lg hover:bg-neutral-700"
+              >
+                Retry
+              </button>
+            </>
+          )}
+
+          {showPricing && (
+            <>
+              <h1 className="text-3xl font-bold text-white mb-4">You've reached the free limit!</h1>
+              <p className="text-neutral-400 mb-8">Upgrade to Vdraw Pro to create unlimited rooms.</p>
+              <button
+                onClick={() => setShowPricing(true)}
+                className="px-6 py-3 bg-violet-600 rounded-lg hover:bg-violet-700 transition font-bold"
+              >
+                View Plans
+              </button>
+            </>
+          )}
         </div>
       )}
 
