@@ -463,6 +463,14 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* CSS override to hide "Mermaid to Excalidraw" menu item if possible */}
+            <style jsx global>{`
+                .dropdown-menu-item[aria-label="Mermaid to Excalidraw"],
+                button[aria-label="Mermaid to Excalidraw"] {
+                    display: none !important;
+                }
+            `}</style>
         </div>
     );
 }
