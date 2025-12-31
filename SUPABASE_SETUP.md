@@ -49,6 +49,20 @@ using (true);
 create policy "Allow public update on drawings"
 on drawings for all
 using (true);
+-- 5. Create 'profiles' table (Required for Credits & Pro Logic)
+create table if not exists profiles (
+  id uuid primary key,
+  usage_count int default 0,
+  subscription_status text default 'free',
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table profiles enable row level security;
+
+-- Allow public access (since using localStorage IDs)
+create policy "Allow public access on profiles"
+on profiles for all
+using (true);
 ```
 
 ## How to run:

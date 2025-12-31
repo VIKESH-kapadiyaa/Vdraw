@@ -14,7 +14,7 @@ export default function RoomPage({
     const { roomId } = use(params);
 
     return (
-        <main className="h-screen w-screen overflow-hidden">
+        <main className="fixed inset-0 h-full w-full overflow-hidden bg-neutral-950">
             <Whiteboard roomId={roomId} />
         </main>
     );

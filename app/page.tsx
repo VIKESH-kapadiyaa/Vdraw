@@ -97,7 +97,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-violet-500/30 flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-violet-500/30 flex flex-col relative overflow-x-hidden">
 
       {/* Background Gradients */}
       <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-violet-600/10 rounded-full blur-[120px] pointer-events-none" />

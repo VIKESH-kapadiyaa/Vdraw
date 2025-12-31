@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Check, Star, Zap, ArrowLeft, Loader2, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Check, Star, Zap, ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
@@ -24,6 +24,10 @@ export default function PricingPage() {
 
     const loadRazorpay = () => {
         return new Promise((resolve) => {
+            if (typeof window !== 'undefined' && 'Razorpay' in window) {
+                resolve(true);
+                return;
+            }
             const script = document.createElement("script");
             script.src = "https://checkout.razorpay.com/v1/checkout.js";
             script.onload = () => resolve(true);
@@ -45,7 +49,7 @@ export default function PricingPage() {
 
         const amount = planType === 'monthly' ? 199 : 1400; // INR
         const options = {
-            key: "rzp_test_RyCvnQbt3IlAbf", // YOUR TEST KEY
+            key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_RyEOy17kcL19Fe", // Fallback for demo
             amount: amount * 100, // Amount in paise
             currency: "INR",
             name: "Vdraw Pro",
@@ -99,11 +103,11 @@ export default function PricingPage() {
     };
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-violet-500/30 relative overflow-hidden flex flex-col">
+        <div className="min-h-screen w-full bg-neutral-950 text-white font-sans selection:bg-violet-500/30 relative flex flex-col overflow-y-auto overflow-x-hidden">
 
             {/* Background Ambient Blobs */}
-            <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-violet-600/10 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-fuchsia-600/10 rounded-full blur-[120px] pointer-events-none" />
+            <div className="fixed top-0 left-0 w-[500px] h-[500px] bg-violet-600/10 rounded-full blur-[120px] pointer-events-none" />
+            <div className="fixed bottom-0 right-0 w-[500px] h-[500px] bg-fuchsia-600/10 rounded-full blur-[120px] pointer-events-none" />
 
             {/* Navbar */}
             <nav className="p-6 md:px-12 flex items-center justify-between relative z-10">
@@ -117,23 +121,9 @@ export default function PricingPage() {
             </nav>
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col items-center justify-center p-6 relative z-10">
+            <main className="flex-1 flex flex-col items-center justify-start p-6 pt-10 relative z-10 w-full max-w-7xl mx-auto">
 
-                {/* Test Mode Banner */}
-                <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-violet-500/10 border border-violet-500/20 text-violet-200 px-6 py-4 rounded-xl mb-12 flex gap-4 items-start max-w-2xl"
-                >
-                    <ShieldCheck className="shrink-0 w-6 h-6 text-violet-400" />
-                    <div>
-                        <h4 className="font-bold text-white mb-1">Developer Test Mode is Active</h4>
-                        <p className="text-sm opacity-80 leading-relaxed">
-                            You are using the Razorpay Test Environment. Real cards will be rejected. <br />
-                            <strong>To pay successfully:</strong> Select <u>Netbanking</u> option in the popup, choose any bank, and it will succeed instantly.
-                        </p>
-                    </div>
-                </motion.div>
+
 
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -149,7 +139,7 @@ export default function PricingPage() {
                 </motion.div>
 
                 {/* Pricing Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl pb-20">
 
                     {/* Monthly Plan */}
                     <motion.div
@@ -221,6 +211,8 @@ export default function PricingPage() {
         </div>
     );
 }
+
+
 
 function Feature({ text, iconColor = "text-violet-400" }: { text: string, iconColor?: string }) {
     return (
