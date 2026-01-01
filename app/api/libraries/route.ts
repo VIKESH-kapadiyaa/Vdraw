@@ -10,7 +10,7 @@ export async function GET() {
         }
         const files = fs.readdirSync(libDir).filter(file => file.endsWith('.excalidrawlib'));
         return NextResponse.json({ files });
-    } catch (e) {
+    } catch {
         return NextResponse.json({ error: 'Failed to list libraries' }, { status: 500 });
     }
 }

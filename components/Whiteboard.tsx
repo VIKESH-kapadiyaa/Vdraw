@@ -24,7 +24,6 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
 
     useEffect(() => {
         setMounted(true);
-        // @ts-ignore
         // window.EXCALIDRAW_ASSET_PATH = "/";
 
         // Check Access Permissions
@@ -100,13 +99,15 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     }, [loadDrawing]);
 
 
+    const lastVersions = useRef<Record<string, number>>({});
+
     // Initialize Realtime Channel
     useEffect(() => {
         if (!roomId) return;
 
         const channel = supabase.channel(roomId, {
             config: {
-                broadcast: { ack: true }
+                broadcast: { self: false, ack: false } // Optimistic: Don't wait for server, don't echo back
             }
         })
             .on('broadcast', { event: 'request-access' }, (payload) => {
@@ -143,12 +144,23 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
             .on('broadcast', { event: 'draw-update' }, (payload) => {
                 if (!excalidrawAPI) return;
 
+                // Prevent infinite loop: Lock broadcasting while applying remote updates
                 isReceivingUpdate.current = true;
-                const { elements, appState } = payload.payload;
+
+                const { elements: incomingElements, appState } = payload.payload;
+
+                // --- CONCURRENCY FIX: Remote Layer ---
+                // We use Excalidraw's built-in merging logic.
+                // By passing only the modified elements, Excalidraw merges them with the current scene.
+                // We do NOT replace the whole scene, effectively creating a "remote patch".
+
                 excalidrawAPI.updateScene({
-                    elements,
-                    appState: { ...appState, collaborators: [] }
+                    elements: incomingElements, // Excalidraw merges by ID automatically
+                    appState: { ...appState, collaborators: [] }, // Sync view background, etc.
+                    commitToHistory: false // Don't add remote changes to local undo stack
                 });
+
+                // Release lock immediately after update
                 setTimeout(() => isReceivingUpdate.current = false, 0);
             })
             .subscribe((status) => {
@@ -157,7 +169,6 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 }
                 if (status === 'CHANNEL_ERROR') {
                     toast.error("Connection Error", { description: "Failed to connect to room channel. Retrying..." });
-                    // Simple retry logic could go here, but Supabase client retries automatically usually.
                 }
             });
 
@@ -167,7 +178,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
             supabase.removeChannel(channel);
             channelRef.current = null;
         };
-    }, [roomId, excalidrawAPI, loadDrawing]); // Added loadDrawing dep
+    }, [roomId, excalidrawAPI, loadDrawing]);
 
     // Branding: Rename Menu Items
     useEffect(() => {
@@ -237,8 +248,6 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         setRequests(prev => prev.filter(id => id !== targetId));
     };
 
-    // NOTE: Load logic moved to 'loadDrawing' function above
-
     const saveDrawing = async (elements: any, appState: any) => {
         try {
             const cleanAppState = { ...appState, collaborators: [] };
@@ -255,14 +264,28 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         [roomId]
     );
 
-    const broadcastDrawing = async (elements: any, appState: any) => {
+    const broadcastDrawing = async (elements: any[], appState: any) => {
         if (!channelRef.current || isReceivingUpdate.current) return;
+
+        // --- BINARY/DELTA LOAD REDUCTION ---
+        // Only broadcast elements that have actually changed versions since last broadcast.
+        const changedElements = elements.filter(el => {
+            const lastVer = lastVersions.current[el.id] || -1;
+            if (el.version > lastVer) {
+                lastVersions.current[el.id] = el.version;
+                return true;
+            }
+            return false;
+        });
+
+        if (changedElements.length === 0) return; // Nothing to send
+
         try {
             await channelRef.current.send({
                 type: 'broadcast',
                 event: 'draw-update',
                 payload: {
-                    elements,
+                    elements: changedElements, // ONLY Send the delta
                     appState: { viewBackgroundColor: appState.viewBackgroundColor }
                 }
             });
@@ -271,14 +294,19 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         }
     };
 
-    // Use throttle for smoother continuous updates (50ms)
+    // Use throttle for smoother continuous updates (30ms = ~30fps)
     const throttledBroadcast = useCallback(
-        throttle((elements, appState) => broadcastDrawing(elements, appState), 50),
+        throttle((elements, appState) => broadcastDrawing(elements, appState), 30),
         []
     );
 
     const handleChange = (elements: any, appState: any) => {
-        if (isReceivingUpdate.current) return;
+        // --- OPTIMISTIC UI ---
+        // We do NOT block rendering here. Excalidraw renders immediately by default.
+        // We just decide whether to broadcast.
+
+        if (isReceivingUpdate.current) return; // Don't broadcast if we are currently applying a remote update
+
         debouncedSave(elements, appState);
         throttledBroadcast(elements, appState);
     };
@@ -367,7 +395,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 }}
                 UIOptions={{
                     dockedSidebarBreakpoint: 768,
-                    // @ts-ignore
+                    // @ts-expect-error: Type definition missing field
                     helpDialog: { socials: false },
                     canvasActions: {
                         changeViewBackgroundColor: true,
