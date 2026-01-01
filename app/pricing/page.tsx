@@ -37,6 +37,12 @@ export default function PricingPage() {
     };
 
     const handlePayment = async (planType: 'monthly' | 'annual') => {
+        // TEMPORARY: Block payments until KYC is verified
+        toast.info("Payments are currently paused.", {
+            description: "We are verifying our payment gateway. Please check back in a few days!"
+        });
+        return;
+
         if (!userId) return;
 
         const res = await loadRazorpay();
@@ -49,7 +55,7 @@ export default function PricingPage() {
 
         const amount = planType === 'monthly' ? 199 : 1400; // INR
         const options = {
-            key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_RyEOy17kcL19Fe", // Fallback for demo
+            key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
             amount: amount * 100, // Amount in paise
             currency: "INR",
             name: "Vdraw Pro",
