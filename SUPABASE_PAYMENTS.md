@@ -2,6 +2,9 @@
 create table if not exists profiles (
   id uuid primary key, -- Use a consistent ID (Auth User ID or Persistent Device ID)
   subscription_status text default 'free',
+  subscription_type text, -- 'monthly' or 'annual'
+  subscription_start_date timestamp with time zone,
+  subscription_end_date timestamp with time zone,
   usage_count int default 0,
   stripe_customer_id text,
   razorpay_customer_id text,

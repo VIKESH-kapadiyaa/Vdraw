@@ -59,6 +59,15 @@ export default function PricingPage() {
                 // Payment Success
                 toast.success(`Payment Successful! ID: ${response.razorpay_payment_id}`);
 
+                // Calculate Dates
+                const now = new Date();
+                let endDate = new Date();
+                if (planType === 'monthly') {
+                    endDate.setMonth(now.getMonth() + 1);
+                } else {
+                    endDate.setFullYear(now.getFullYear() + 1);
+                }
+
                 // Update Supabase
                 try {
                     const { error } = await supabase
@@ -66,7 +75,10 @@ export default function PricingPage() {
                         .upsert({
                             id: userId,
                             subscription_status: 'pro',
-                            updated_at: new Date().toISOString()
+                            subscription_type: planType,
+                            subscription_start_date: now.toISOString(),
+                            subscription_end_date: endDate.toISOString(),
+                            updated_at: now.toISOString()
                         });
 
                     if (error) throw error;

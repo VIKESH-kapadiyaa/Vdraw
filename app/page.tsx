@@ -12,6 +12,7 @@ export default function LandingPage() {
   const [loading, setLoading] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
   const [isPro, setIsPro] = useState(false);
+  const [renewalDate, setRenewalDate] = useState<string | null>(null);
   const userIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -28,13 +29,27 @@ export default function LandingPage() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('usage_count, subscription_status')
+        .select('usage_count, subscription_status, subscription_end_date')
         .eq('id', storedId)
         .single();
 
       if (data) {
+        let isActivePro = data.subscription_status === 'pro';
+
+        // Check Expiration
+        if (isActivePro && data.subscription_end_date) {
+          const endDate = new Date(data.subscription_end_date);
+          if (new Date() > endDate) {
+            // Expired
+            isActivePro = false;
+            // Optional: We could update DB here to 'free', but lazy check is fine for now
+          } else {
+            setRenewalDate(endDate.toLocaleDateString());
+          }
+        }
+
         setCredits(data.usage_count || 0);
-        setIsPro(data.subscription_status === 'pro');
+        setIsPro(isActivePro);
       } else {
         setCredits(0);
       }
@@ -56,7 +71,15 @@ export default function LandingPage() {
         .single();
 
       const usage = profile?.usage_count || 0;
-      const status = profile?.subscription_status || 'free';
+      let status = profile?.subscription_status || 'free';
+
+      // Double Check Expiration on Action
+      if (status === 'pro' && profile?.subscription_end_date) {
+        if (new Date() > new Date(profile.subscription_end_date)) {
+          status = 'free';
+          toast.error("Your Pro Plan has expired.", { description: "Please renew to create more rooms." });
+        }
+      }
 
       // 3. Strict Gatekeeper (Allows exactly 2)
       if (usage >= 2 && status !== 'pro') {
@@ -113,7 +136,12 @@ export default function LandingPage() {
         </div>
         <div className="flex items-center gap-6">
           <Link href="/pricing" className="text-neutral-400 hover:text-white transition font-medium">Pricing</Link>
-          {isPro && <div className="text-xs font-bold bg-violet-500/20 text-violet-300 px-2 py-1 rounded">PRO ACTIVE</div>}
+          {isPro && (
+            <div className="flex flex-col items-end">
+              <div className="text-xs font-bold bg-violet-500/20 text-violet-300 px-2 py-1 rounded">PRO ACTIVE</div>
+              {renewalDate && <span className="text-[10px] text-neutral-500 mt-1" suppressHydrationWarning>Renews: {renewalDate}</span>}
+            </div>
+          )}
         </div>
       </nav>
 
