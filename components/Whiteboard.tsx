@@ -389,6 +389,12 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         toast.loading("Processing files...");
 
         for (const file of files) {
+            // Limit: 1GB = 1024 * 1024 * 1024 bytes
+            if (file.size > 1024 * 1024 * 1024) {
+                toast.error(`File ${file.name} is too large (>1GB). Skipped.`);
+                continue;
+            }
+
             if (file.type.startsWith("image/")) {
                 await insertImageToScene(file);
             } else if (file.type === "application/pdf") {
