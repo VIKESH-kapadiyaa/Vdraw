@@ -81,9 +81,9 @@ export default function LandingPage() {
         }
       }
 
-      // 3. Strict Gatekeeper (Allows exactly 2)
-      if (usage >= 2 && status !== 'pro') {
-        toast.info("Free Limit Reached", { description: "You have used your 2 free credits." });
+      // 3. Strict Gatekeeper (Allows exactly 10)
+      if (usage >= 10 && status !== 'pro') {
+        toast.info("Free Limit Reached", { description: "You have used your 10 free credits." });
         router.push('/pricing');
         return;
       }
@@ -100,8 +100,8 @@ export default function LandingPage() {
 
       // Feedback
       if (status !== 'pro') {
-        if (newUsage === 1) toast.success(`Room Created!`, { description: "1/2 Free Credits Used" });
-        if (newUsage === 2) toast.warning(`Last Free Credit Used!`, { description: "Next room requires Pro plan." });
+        if (newUsage < 10) toast.success(`Room Created!`, { description: `${newUsage}/10 Free Credits Used` });
+        if (newUsage === 10) toast.warning(`Last Free Credit Used!`, { description: "Next room requires Pro plan." });
       }
 
       // 5. Create Room
@@ -169,10 +169,10 @@ export default function LandingPage() {
           {/* Credit Counter Badge */}
           {!isPro && credits !== null && (
             <div className="mb-8 inline-flex items-center gap-2 bg-neutral-900 border border-neutral-800 px-4 py-2 rounded-full">
-              {credits >= 2 ? (
+              {credits >= 10 ? (
                 <span className="text-red-400 flex items-center gap-2"><ShieldAlert className="w-4 h-4" /> 0 Free Credits Left</span>
               ) : (
-                <span className="text-neutral-300">Free Credits Used: <span className="text-white font-bold">{credits}/2</span></span>
+                <span className="text-neutral-300">Free Credits Used: <span className="text-white font-bold">{credits}/10</span></span>
               )}
             </div>
           )}
@@ -189,7 +189,7 @@ export default function LandingPage() {
                 </span>
               ) : (
                 <span className="flex items-center justify-center gap-2">
-                  {(!isPro && credits !== null && credits >= 2) ? "Upgrade to Draw" : "Start Drawing"} <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  {(!isPro && credits !== null && credits >= 10) ? "Upgrade to Draw" : "Start Drawing"} <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </span>
               )}
 
