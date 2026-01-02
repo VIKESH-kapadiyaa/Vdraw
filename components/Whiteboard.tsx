@@ -7,7 +7,10 @@ import debounce from "lodash.debounce";
 import throttle from "lodash.throttle";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, DoorOpen, Check, X, Loader2 } from "lucide-react";
+import { Lock, DoorOpen, Check, X, Loader2, Upload, FileUp } from "lucide-react";
+// @ts-ignore
+import * as pdfjsLib from "pdfjs-dist";
+
 
 export default function Whiteboard({ roomId }: { roomId: string }) {
     const [mounted, setMounted] = useState(false);
@@ -24,6 +27,12 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
 
     useEffect(() => {
         setMounted(true);
+        // Configure PDF Worker
+        // @ts-ignore
+        if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+            // @ts-ignore
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+        }
         // window.EXCALIDRAW_ASSET_PATH = "/";
 
         // Check Access Permissions
@@ -311,6 +320,139 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         throttledBroadcast(elements, appState);
     };
 
+    // --- FILE IMPORT HANDLERS ---
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const insertImageToScene = async (blob: Blob) => {
+        if (!excalidrawAPI) return;
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onload = () => {
+            const dataURL = reader.result as string;
+            const img = new Image();
+            img.onload = () => {
+                const { width, height } = img;
+                const fileId = typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString();
+
+                // Calculate center position
+                const appState = excalidrawAPI.getAppState();
+                const centerX = appState.scrollX + (appState.width || window.innerWidth) / 2 - width / 2;
+                const centerY = appState.scrollY + (appState.height || window.innerHeight) / 2 - height / 2;
+
+                const element: any = {
+                    id: fileId,
+                    type: "image",
+                    x: centerX,
+                    y: centerY,
+                    width,
+                    height,
+                    fileId,
+                    status: "saved",
+                    version: 1,
+                    versionNonce: Date.now(),
+                    isDeleted: false,
+                    fillStyle: "hachure",
+                    strokeWidth: 1,
+                    strokeStyle: "solid",
+                    roughness: 1,
+                    opacity: 100,
+                    groupIds: [],
+                    strokeColor: "#000000",
+                    backgroundColor: "transparent",
+                    angle: 0,
+                    seed: Date.now(),
+                    updated: Date.now(),
+                    link: null,
+                    locked: false,
+                };
+
+                const fileData = {
+                    id: fileId,
+                    mimeType: blob.type,
+                    dataURL,
+                    created: Date.now(),
+                    lastRetrieved: Date.now()
+                };
+
+                excalidrawAPI.updateScene({
+                    elements: [...excalidrawAPI.getSceneElements(), element],
+                    appState: {
+                        ...appState,
+                        files: {
+                            ...appState.files,
+                            [fileId]: fileData
+                        }
+                    }
+                });
+            };
+            img.src = dataURL;
+        };
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+        e.target.value = ""; // Reset
+
+        toast.loading("Processing files...");
+
+        for (const file of files) {
+            if (file.type.startsWith("image/")) {
+                await insertImageToScene(file);
+            } else if (file.type === "application/pdf") {
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const viewport = page.getViewport({ scale: 1.5 });
+                        const canvas = document.createElement("canvas");
+                        const context = canvas.getContext("2d");
+                        if (context) {
+                            canvas.height = viewport.height;
+                            canvas.width = viewport.width;
+                            await page.render({ canvasContext: context, viewport }).promise;
+                            const blob = await new Promise<Blob | null>(r => canvas.toBlob(r));
+                            if (blob) await insertImageToScene(blob);
+                        }
+                    }
+                    toast.success("PDF Imported successfully");
+                } catch (err) {
+                    console.error(err);
+                    toast.error("Failed to import PDF");
+                }
+            } else if (file.type.startsWith("video/")) {
+                try {
+                    const video = document.createElement('video');
+                    video.preload = 'metadata';
+                    video.src = URL.createObjectURL(file);
+                    video.currentTime = 1; // Capture at 1s
+                    await new Promise((resolve) => {
+                        video.onloadedmetadata = () => { video.currentTime = 1; };
+                        video.onseeked = resolve;
+                        video.onerror = resolve; // Fallback
+                        // Timeout fallback
+                        setTimeout(resolve, 2000);
+                    });
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(video, 0, 0);
+                        const blob = await new Promise<Blob | null>(r => canvas.toBlob(r));
+                        if (blob) await insertImageToScene(blob);
+                    }
+                    toast.success("Video snapshot imported");
+                } catch (err) {
+                    toast.error("Failed to process video");
+                }
+            }
+        }
+        toast.dismiss();
+    };
+
     if (!mounted) {
         return (
             <div className="flex flex-col items-center justify-center h-screen w-screen bg-neutral-950 text-white">
@@ -439,6 +581,10 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 <MainMenu>
                     <MainMenu.DefaultItems.Export />
                     <MainMenu.DefaultItems.SaveAsImage />
+                    {/* @ts-ignore */}
+                    <MainMenu.Item onSelect={() => fileInputRef.current?.click()} icon={<FileUp className="w-4 h-4" />}>
+                        Import File...
+                    </MainMenu.Item>
                     <MainMenu.DefaultItems.ClearCanvas />
                     <MainMenu.Separator />
                     <MainMenu.DefaultItems.ToggleTheme />
@@ -515,7 +661,15 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 )}
             </AnimatePresence>
 
-
+            {/* Hidden Input for Imports */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: "none" }}
+                accept="image/*,application/pdf,video/*"
+                multiple
+                onChange={handleFileUpload}
+            />
         </div>
     );
 }
