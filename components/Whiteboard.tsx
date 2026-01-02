@@ -8,8 +8,6 @@ import throttle from "lodash.throttle";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, DoorOpen, Check, X, Loader2, Upload, FileUp } from "lucide-react";
-// @ts-ignore
-import * as pdfjsLib from "pdfjs-dist";
 
 
 export default function Whiteboard({ roomId }: { roomId: string }) {
@@ -27,12 +25,6 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
 
     useEffect(() => {
         setMounted(true);
-        // Configure PDF Worker
-        // @ts-ignore
-        if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-            // @ts-ignore
-            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-        }
         // window.EXCALIDRAW_ASSET_PATH = "/";
 
         // Check Access Permissions
@@ -401,8 +393,17 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 await insertImageToScene(file);
             } else if (file.type === "application/pdf") {
                 try {
+                    // Dynamic import to avoid SSR/Build issues
+                    // @ts-ignore
+                    const pdfjs = await import("pdfjs-dist/build/pdf");
+                    // @ts-ignore
+                    const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker.entry");
+
+                    pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
+
                     const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
                         const viewport = page.getViewport({ scale: 1.5 });
