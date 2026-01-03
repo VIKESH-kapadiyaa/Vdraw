@@ -409,7 +409,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     // @ts-ignore
                     const pdfjs = await import("pdfjs-dist/build/pdf");
                     // @ts-ignore
-                    const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker.entry");
+                    const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker.mjs");
 
                     pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
 
