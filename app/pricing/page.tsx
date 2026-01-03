@@ -1,16 +1,17 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Check, Star, Zap, ArrowLeft, Loader2 } from "lucide-react";
+import { Check, Star, Zap, ArrowLeft, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function PricingPage() {
     const [loading, setLoading] = useState(false);
     const [couponCode, setCouponCode] = useState("");
     const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
+    const [showSecretMessage, setShowSecretMessage] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
     const router = useRouter();
 
@@ -26,6 +27,12 @@ export default function PricingPage() {
 
     const checkCoupon = () => {
         const code = couponCode.trim().toUpperCase();
+
+        if (code === "KANISHKAGHOCHU") {
+            setShowSecretMessage(true);
+            return;
+        }
+
         if (code === "ZEROVDRAW" || code === "50OFFVDRAW" || code === "LIVEONLY50") {
             setAppliedCoupon(code);
             let desc = "Discount Applied";
@@ -318,6 +325,41 @@ export default function PricingPage() {
 
                 </div>
             </main>
+
+            {/* Secret Message Modal */}
+            <AnimatePresence>
+                {showSecretMessage && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+                        onClick={() => setShowSecretMessage(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="bg-neutral-900 border border-violet-500/30 p-8 rounded-3xl max-w-lg text-center relative shadow-2xl shadow-violet-500/20"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <button
+                                onClick={() => setShowSecretMessage(false)}
+                                className="absolute top-4 right-4 text-neutral-400 hover:text-white transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                            <div className="text-5xl mb-6">🦖</div>
+                            <h3 className="text-2xl font-bold text-white mb-4 bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-fuchsia-400">
+                                Not to flirt or anything...
+                            </h3>
+                            <p className="text-xl text-neutral-300 font-medium leading-relaxed">
+                                "But if you were a dinosaur, you'd be a gorgeousaurus."
+                            </p>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
