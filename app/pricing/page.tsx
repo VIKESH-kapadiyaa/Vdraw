@@ -9,6 +9,8 @@ import { motion } from "framer-motion";
 
 export default function PricingPage() {
     const [loading, setLoading] = useState(false);
+    const [couponCode, setCouponCode] = useState("");
+    const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
     const router = useRouter();
 
@@ -21,6 +23,21 @@ export default function PricingPage() {
         }
         setUserId(id);
     }, []);
+
+    const checkCoupon = () => {
+        const code = couponCode.trim().toUpperCase();
+        if (code === "ZEROVDRAW" || code === "50OFFVDRAW" || code === "LIVEONLY50") {
+            setAppliedCoupon(code);
+            let desc = "Discount Applied";
+            if (code === "ZEROVDRAW") desc = "100% Discount";
+            if (code === "50OFFVDRAW") desc = "50% Discount";
+            if (code === "LIVEONLY50") desc = "Special Price: ₹50/mo";
+            toast.success("Coupon Applied!", { description: desc });
+        } else {
+            toast.error("Invalid Coupon", { description: "Please check the code and try again." });
+            setAppliedCoupon(null);
+        }
+    };
 
     const loadRazorpay = () => {
         return new Promise((resolve) => {
@@ -36,10 +53,64 @@ export default function PricingPage() {
         });
     };
 
+    const handleSuccess = async (planType: 'monthly' | 'annual') => {
+        // Calculate Dates
+        const now = new Date();
+        let endDate = new Date();
+        if (planType === 'monthly') {
+            endDate.setMonth(now.getMonth() + 1);
+        } else {
+            endDate.setFullYear(now.getFullYear() + 1);
+        }
+
+        // Update Supabase
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .upsert({
+                    id: userId,
+                    subscription_status: 'pro',
+                    subscription_type: planType,
+                    subscription_start_date: now.toISOString(),
+                    subscription_end_date: endDate.toISOString(),
+                    updated_at: now.toISOString()
+                });
+
+            if (error) throw error;
+
+            toast.success("Account Upgraded! Redirecting...");
+            setTimeout(() => {
+                router.push('/'); // Go back to create room
+            }, 1500);
+
+        } catch (err) {
+            toast.error("Database update failed. Contact support.");
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }
+
     const handlePayment = async (planType: 'monthly' | 'annual') => {
-
-
         if (!userId) return;
+
+        let amount = planType === 'monthly' ? 199 : 1400; // INR
+
+        // Apply Coupon Logic
+        if (appliedCoupon === "ZEROVDRAW") {
+            amount = 0;
+        } else if (appliedCoupon === "50OFFVDRAW") {
+            amount = amount * 0.5;
+        } else if (appliedCoupon === "LIVEONLY50" && planType === 'monthly') {
+            amount = 50;
+        }
+
+        // If Free, bypass Razorpay
+        if (amount === 0) {
+            setLoading(true);
+            await handleSuccess(planType);
+            return;
+        }
 
         if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) {
             toast.error("Payment Error: Missing API Key", { description: "Please restart your server to load the new keys." });
@@ -55,7 +126,6 @@ export default function PricingPage() {
 
         setLoading(true);
 
-        const amount = planType === 'monthly' ? 199 : 1400; // INR
         const options = {
             key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
             amount: amount * 100, // Amount in paise
@@ -66,42 +136,7 @@ export default function PricingPage() {
             handler: async function (response: any) {
                 // Payment Success
                 toast.success(`Payment Successful! ID: ${response.razorpay_payment_id}`);
-
-                // Calculate Dates
-                const now = new Date();
-                let endDate = new Date();
-                if (planType === 'monthly') {
-                    endDate.setMonth(now.getMonth() + 1);
-                } else {
-                    endDate.setFullYear(now.getFullYear() + 1);
-                }
-
-                // Update Supabase
-                try {
-                    const { error } = await supabase
-                        .from('profiles')
-                        .upsert({
-                            id: userId,
-                            subscription_status: 'pro',
-                            subscription_type: planType,
-                            subscription_start_date: now.toISOString(),
-                            subscription_end_date: endDate.toISOString(),
-                            updated_at: now.toISOString()
-                        });
-
-                    if (error) throw error;
-
-                    toast.success("Account Upgraded! Redirecting...");
-                    setTimeout(() => {
-                        router.push('/'); // Go back to create room
-                    }, 1500);
-
-                } catch (err) {
-                    toast.error("Database update failed. Contact support.");
-                    console.error(err);
-                } finally {
-                    setLoading(false);
-                }
+                await handleSuccess(planType);
             },
             prefill: {
                 name: "Test User",
@@ -143,12 +178,10 @@ export default function PricingPage() {
             {/* Main Content */}
             <main className="flex-1 flex flex-col items-center justify-start p-6 pt-10 relative z-10 w-full max-w-7xl mx-auto">
 
-
-
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="text-center max-w-2xl mb-12"
+                    className="text-center max-w-2xl mb-8"
                 >
                     <h1 className="text-4xl md:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white to-white/70">
                         Unlock Limitless Creativity
@@ -156,6 +189,35 @@ export default function PricingPage() {
                     <p className="text-lg text-neutral-400">
                         You've hit the free limit. Upgrade to Pro to create unlimited rooms, access premium tools, and collaborate without boundaries.
                     </p>
+                </motion.div>
+
+                {/* Coupon Input */}
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-10 w-full max-w-md flex flex-col items-center gap-2"
+                >
+                    <div className="flex w-full gap-2">
+                        <input
+                            type="text"
+                            placeholder="Have a coupon? Enter code"
+                            value={couponCode}
+                            onChange={(e) => setCouponCode(e.target.value)}
+                            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-neutral-500 focus:outline-none focus:border-violet-500 transition-colors uppercase"
+                        />
+                        <button
+                            onClick={checkCoupon}
+                            className="bg-white/10 hover:bg-white/20 text-white font-medium px-6 py-3 rounded-xl transition-colors border border-white/5"
+                        >
+                            Apply
+                        </button>
+                    </div>
+                    {appliedCoupon && (
+                        <div className="text-emerald-400 text-sm font-medium flex items-center gap-1">
+                            <Check className="w-3 h-3" />
+                            {appliedCoupon === "ZEROVDRAW" ? "100% OFF APPLIED" : appliedCoupon === "LIVEONLY50" ? "SPECIAL ₹50 PRICE" : "50% OFF APPLIED"}
+                        </div>
+                    )}
                 </motion.div>
 
                 {/* Pricing Cards Grid */}
@@ -173,8 +235,22 @@ export default function PricingPage() {
                         </div>
                         <h3 className="text-xl font-medium text-neutral-300">Monthly</h3>
                         <div className="mt-2 mb-6">
-                            <span className="text-4xl font-bold text-white">₹199</span>
-                            <span className="text-neutral-500 ml-2">/ month</span>
+                            {appliedCoupon ? (
+                                <div className="flex flex-col">
+                                    <span className="text-neutral-500 line-through text-lg">₹199</span>
+                                    <div className="flex items-baseline">
+                                        <span className="text-4xl font-bold text-white">
+                                            {appliedCoupon === "ZEROVDRAW" ? "₹0" : appliedCoupon === "LIVEONLY50" ? "₹50" : "₹99"}
+                                        </span>
+                                        <span className="text-neutral-500 ml-2">/ month</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <span className="text-4xl font-bold text-white">₹199</span>
+                                    <span className="text-neutral-500 ml-2">/ month</span>
+                                </div>
+                            )}
                         </div>
                         <ul className="space-y-4 mb-8 flex-1">
                             <Feature text="Unlimited Rooms" />
@@ -208,8 +284,22 @@ export default function PricingPage() {
 
                         <h3 className="text-xl font-medium text-white">Annual</h3>
                         <div className="mt-2 mb-6">
-                            <span className="text-4xl font-bold text-white">₹1400</span>
-                            <span className="text-violet-200/60 line-through text-lg ml-3">₹2400</span>
+                            {appliedCoupon ? (
+                                <div className="flex flex-col">
+                                    <span className="text-neutral-500 line-through text-lg">₹1400</span>
+                                    <div className="flex items-baseline">
+                                        <span className="text-4xl font-bold text-white">
+                                            {appliedCoupon === "ZEROVDRAW" ? "₹0" : "₹700"}
+                                        </span>
+                                        <span className="text-neutral-500 ml-2">/ year</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <span className="text-4xl font-bold text-white">₹1400</span>
+                                    <span className="text-violet-200/60 line-through text-lg ml-3">₹2400</span>
+                                </div>
+                            )}
                         </div>
                         <ul className="space-y-4 mb-8 flex-1">
                             <Feature text="Everything in Monthly" />
