@@ -37,11 +37,7 @@ export default function PricingPage() {
     };
 
     const handlePayment = async (planType: 'monthly' | 'annual') => {
-        // TEMPORARY: Block payments until KYC is verified
-        toast.info("Payments are currently paused.", {
-            description: "We are verifying our payment gateway. Please check back in a few days!"
-        });
-        return;
+
 
         if (!userId) return;
 
