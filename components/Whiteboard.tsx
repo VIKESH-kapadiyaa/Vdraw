@@ -7,7 +7,8 @@ import debounce from "lodash.debounce";
 import throttle from "lodash.throttle";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, DoorOpen, Check, X, Loader2, Upload, FileUp } from "lucide-react";
+import { Lock, DoorOpen, Check, X, Loader2, Upload, FileUp, Sparkles } from "lucide-react";
+import AIPreviewPanel from "./AIPreviewPanel";
 
 
 export default function Whiteboard({ roomId }: { roomId: string }) {
@@ -22,6 +23,11 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     const [requests, setRequests] = useState<string[]>([]);
     const [isRequesting, setIsRequesting] = useState(false);
     const myId = useRef(typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString());
+
+    // --- AI WIREFRAME TO CODE STATE ---
+    const [isAIPreviewOpen, setIsAIPreviewOpen] = useState(false);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [generatedCode, setGeneratedCode] = useState<string | null>(null);
 
     useEffect(() => {
         setMounted(true);
@@ -535,6 +541,63 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         );
     }
 
+    // --- AI WIREFRAME TO CODE ---
+
+    const generateCode = async () => {
+        if (!excalidrawAPI) return;
+
+        try {
+            setAiLoading(true);
+            setIsAIPreviewOpen(true);
+            setGeneratedCode(null);
+
+            // 1. Export Canvas to Image
+            const elements = excalidrawAPI.getSceneElements();
+            if (!elements || elements.length === 0) {
+                toast.error("Canvas is empty", { description: "Draw something first!" });
+                setAiLoading(false);
+                return;
+            }
+
+            // @ts-ignore
+            const { exportToCanvas } = await import("@excalidraw/excalidraw");
+
+            const canvas = await exportToCanvas({
+                elements,
+                appState: {
+                    ...excalidrawAPI.getAppState(),
+                    exportWithDarkMode: true,
+                },
+                files: excalidrawAPI.getFiles(),
+                exportPadding: 20
+            });
+
+            // 2. Convert to Base64 (JPEG compressed)
+            const imageBase64 = canvas.toDataURL("image/jpeg", 0.6);
+
+            // 3. Call AI Edge Function
+            const { data, error } = await supabase.functions.invoke('vdraw-ai', {
+                body: {
+                    imageBase64,
+                    roomContext: "A collaborative whiteboard session." // Optional context
+                }
+            });
+
+            if (error) throw error;
+            if (data?.error) throw new Error(data.error);
+
+            setGeneratedCode(data.code);
+            toast.success("Code Generated!", { description: "Check the preview panel." });
+
+        } catch (err: any) {
+            console.error("AI Gen Error", err);
+            toast.error("Generation Failed", { description: err.message || "Something went wrong." });
+            setGeneratedCode("// Error generating code. Please try again.");
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
     return (
         <div style={{ height: "100vh", width: "100vw", position: "relative" }}>
             <Excalidraw
@@ -592,8 +655,13 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     <MainMenu.Item onSelect={() => fileInputRef.current?.click()} icon={<FileUp className="w-4 h-4" />}>
                         Import File...
                     </MainMenu.Item>
-                    <MainMenu.DefaultItems.ClearCanvas />
                     <MainMenu.Separator />
+                    {/* @ts-ignore */}
+                    <MainMenu.Item onSelect={generateCode} icon={<Sparkles className="w-4 h-4 text-violet-400" />}>
+                        Generate Code (AI)
+                    </MainMenu.Item>
+                    <MainMenu.Separator />
+                    <MainMenu.DefaultItems.ClearCanvas />
                     <MainMenu.DefaultItems.ToggleTheme />
                     <MainMenu.DefaultItems.ChangeCanvasBackground />
                 </MainMenu>
@@ -606,6 +674,14 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     </div>
                 </Footer>
             </Excalidraw>
+
+            {/* AI Preview Panel */}
+            <AIPreviewPanel
+                isOpen={isAIPreviewOpen}
+                onClose={() => setIsAIPreviewOpen(false)}
+                isLoading={aiLoading}
+                code={generatedCode}
+            />
 
             {/* Host Requests Panel */}
             <AnimatePresence>
