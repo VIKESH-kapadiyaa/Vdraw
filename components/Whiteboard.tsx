@@ -153,6 +153,13 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
 
                 const { elements: incomingElements, appState } = payload.payload;
 
+                // --- FIX: Update lastVersions to prevent echoing back ---
+                // We mark these incoming versions as "seen" so our broadcaster doesn't think 
+                // they are new local changes and send them back (which reverts the sender).
+                incomingElements.forEach((el: any) => {
+                    lastVersions.current[el.id] = el.version;
+                });
+
                 // --- CONCURRENCY FIX: Remote Layer ---
                 // We use Excalidraw's built-in merging logic.
                 // By passing only the modified elements, Excalidraw merges them with the current scene.
