@@ -41,6 +41,12 @@ export default function PricingPage() {
 
         if (!userId) return;
 
+        if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) {
+            toast.error("Payment Error: Missing API Key", { description: "Please restart your server to load the new keys." });
+            console.error("Razorpay Key ID is undefined. Make sure NEXT_PUBLIC_RAZORPAY_KEY_ID is set in .env.local and server is restarted.");
+            return;
+        }
+
         const res = await loadRazorpay();
         if (!res) {
             toast.error("Razorpay SDK failed to load");
