@@ -284,7 +284,7 @@ export default function PricingPage() {
 
                         <h3 className="text-xl font-medium text-white">Annual</h3>
                         <div className="mt-2 mb-6">
-                            {appliedCoupon ? (
+                            {appliedCoupon && appliedCoupon !== "LIVEONLY50" ? (
                                 <div className="flex flex-col">
                                     <span className="text-neutral-500 line-through text-lg">₹1400</span>
                                     <div className="flex items-baseline">
