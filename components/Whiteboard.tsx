@@ -423,11 +423,23 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     // @ts-ignore
                     const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
 
+                    // Explicitly dereference and check existence
+                    // @ts-ignore
+                    const pdfjsLib = pdfjs.default || pdfjs;
+
+                    if (!pdfjsLib || !pdfjsLib.GlobalWorkerOptions) {
+                        throw new Error("PDF.js library not properly loaded");
+                    }
+
                     // Use CDN for worker to avoid Next.js bundling issues with web workers
-                    pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+                    // Validation: workerSrc must be a string and pdfjs.version might be missing
+                    const version = pdfjsLib.version || "5.4.530";
+                    const workerUrl = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
                     const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
