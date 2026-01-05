@@ -325,7 +325,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     // --- FILE IMPORT HANDLERS ---
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const insertImageToScene = async (blob: Blob) => {
+    const insertImageToScene = async (blob: Blob, opts?: { x?: number, y?: number }) => {
         if (!excalidrawAPI) return;
         const reader = new FileReader();
         reader.readAsDataURL(blob);
@@ -336,10 +336,10 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 const { width, height } = img;
                 const fileId = typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString();
 
-                // Calculate center position
+                // Calculate center position or use provided coordinates
                 const appState = excalidrawAPI.getAppState();
-                const centerX = appState.scrollX + (appState.width || window.innerWidth) / 2 - width / 2;
-                const centerY = appState.scrollY + (appState.height || window.innerHeight) / 2 - height / 2;
+                const centerX = opts?.x ?? (appState.scrollX + (appState.width || window.innerWidth) / 2 - width / 2);
+                const centerY = opts?.y ?? (appState.scrollY + (appState.height || window.innerHeight) / 2 - height / 2);
 
                 const element: any = {
                     id: fileId,
@@ -441,6 +441,12 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     const arrayBuffer = await file.arrayBuffer();
                     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
+                    // Simple grid layout config
+                    const SPACING = 50;
+                    const COLS = 2; // Fixed 2 columns
+                    let currentX = excalidrawAPI.getAppState().scrollX + 100;
+                    let currentY = excalidrawAPI.getAppState().scrollY + 100;
+
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
                         const viewport = page.getViewport({ scale: 1.5 });
@@ -451,7 +457,15 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                             canvas.width = viewport.width;
                             await page.render({ canvasContext: context, viewport }).promise;
                             const blob = await new Promise<Blob | null>(r => canvas.toBlob(r));
-                            if (blob) await insertImageToScene(blob);
+
+                            // Calculate position based on grid
+                            const colIndex = (i - 1) % COLS;
+                            const rowIndex = Math.floor((i - 1) / COLS);
+
+                            const x = currentX + colIndex * (viewport.width + SPACING);
+                            const y = currentY + rowIndex * (viewport.height + SPACING);
+
+                            if (blob) await insertImageToScene(blob, { x, y });
                         }
                     }
                     toast.success("PDF Imported successfully");
