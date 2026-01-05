@@ -422,10 +422,9 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     // Dynamic import to avoid SSR/Build issues
                     // @ts-ignore
                     const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
-                    // @ts-ignore
-                    const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker.mjs");
 
-                    pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
+                    // Use CDN for worker to avoid Next.js bundling issues with web workers
+                    pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
                     const arrayBuffer = await file.arrayBuffer();
                     const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
@@ -444,9 +443,9 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                         }
                     }
                     toast.success("PDF Imported successfully");
-                } catch (err) {
-                    console.error(err);
-                    toast.error("Failed to import PDF");
+                } catch (err: any) {
+                    console.error("PDF Import Error:", err);
+                    toast.error(`Failed to import PDF: ${err.message}`);
                 }
             } else if (file.type.startsWith("video/")) {
                 try {
