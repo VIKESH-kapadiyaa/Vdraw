@@ -439,6 +439,10 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                                     <div className="text-neutral-500 text-sm">Upload a PDF to view it here</div>
                                 </WelcomeScreen.Center>
                             </WelcomeScreen>
+                            {/* Hide footer links */}
+                            <Footer>
+                                <div style={{ display: "none" }} />
+                            </Footer>
                         </Excalidraw>
                     </div>
                 </div>
