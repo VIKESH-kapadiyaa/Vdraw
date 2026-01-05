@@ -376,16 +376,26 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     lastRetrieved: Date.now()
                 };
 
-                excalidrawAPI.updateScene({
-                    elements: [...excalidrawAPI.getSceneElements(), element],
-                    appState: {
-                        ...appState,
-                        files: {
-                            ...appState.files,
-                            [fileId]: fileData
-                        }
-                    }
-                });
+                // Use addFiles if available (preferred way to add files to state)
+                if (excalidrawAPI.addFiles) {
+                    excalidrawAPI.addFiles([fileData]);
+                    excalidrawAPI.updateScene({
+                        elements: [...excalidrawAPI.getSceneElements(), element],
+                        commitToHistory: true,
+                    });
+                } else {
+                    excalidrawAPI.updateScene({
+                        elements: [...excalidrawAPI.getSceneElements(), element],
+                        appState: {
+                            ...appState,
+                            files: {
+                                ...appState.files,
+                                [fileId]: fileData
+                            }
+                        },
+                        commitToHistory: true,
+                    });
+                }
             };
             img.src = dataURL;
         };
@@ -411,7 +421,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 try {
                     // Dynamic import to avoid SSR/Build issues
                     // @ts-ignore
-                    const pdfjs = await import("pdfjs-dist/build/pdf");
+                    const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
                     // @ts-ignore
                     const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker.mjs");
 
