@@ -320,7 +320,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         if (!excalidrawAPI) return;
         const elements = excalidrawAPI.getSceneElements();
         const appState = excalidrawAPI.getAppState();
-        const json = serializeAsJSON(elements, appState, { exportBackground: true, viewBackgroundColor: appState.viewBackgroundColor }, "local");
+        const json = serializeAsJSON(elements, appState, excalidrawAPI.getFiles(), "local");
 
         const blob = new Blob([json], { type: "application/json" });
         const url = window.URL.createObjectURL(blob);
