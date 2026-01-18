@@ -171,7 +171,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     };
 
     const broadcastData = async (channel: any, elements: any[], appState: any, versionsRef: any, receivingRef: any) => {
-        if (!channel || receivingRef.current) return;
+        if (!channel) return;
         const changed = elements.filter(el => {
             const last = versionsRef.current[el.id] || -1;
             if (el.version > last) {
@@ -355,7 +355,8 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     theme="dark"
                     excalidrawAPI={(api) => setExcalidrawAPI(api)}
                     onChange={(elements, appState) => {
-                        if (!isReceivingUpdate.current) { debouncedSaveMain(elements, appState); throttledBroadcastMain(elements, appState); }
+                        debouncedSaveMain(elements, appState);
+                        throttledBroadcastMain(elements, appState);
                     }}
                     UIOptions={{
                         canvasActions: { changeViewBackgroundColor: true, clearCanvas: true, loadScene: false, saveToActiveFile: false, toggleTheme: true, saveAsImage: true },
@@ -427,7 +428,8 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                             theme="dark"
                             excalidrawAPI={(api) => setPdfExcalidrawAPI(api)}
                             onChange={(elements, appState) => {
-                                if (!isReceivingPdfUpdate.current) { debouncedSavePdf(elements, appState); throttledBroadcastPdf(elements, appState); }
+                                debouncedSavePdf(elements, appState);
+                                throttledBroadcastPdf(elements, appState);
                             }}
                             UIOptions={{
                                 canvasActions: { changeViewBackgroundColor: false, clearCanvas: true, loadScene: false, saveToActiveFile: false, toggleTheme: false, saveAsImage: true },
