@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
-import { Loader2, ArrowRight, Zap, Layout, Play, ShieldAlert } from "lucide-react";
+import { Loader2, ArrowRight, Zap, Layout, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -13,7 +13,7 @@ export default function LandingPage() {
   const [credits, setCredits] = useState<number | null>(null);
   const [isPro, setIsPro] = useState(false);
   const [renewalDate, setRenewalDate] = useState<string | null>(null);
-  const [recentRooms, setRecentRooms] = useState<any[]>([]);
+  const [recentRooms, setRecentRooms] = useState<{ id: string; date: string }[]>([]);
   const userIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -197,7 +197,6 @@ export default function LandingPage() {
                   {(!isPro && credits !== null && credits >= 4) ? "Upgrade to Draw" : "Start Drawing"} <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </span>
               )}
-
               {/* Button Glow */}
               <div className="absolute inset-0 rounded-xl bg-white/50 blur-lg opacity-0 group-hover:opacity-50 transition-opacity" />
             </button>

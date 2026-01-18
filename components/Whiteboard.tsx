@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Excalidraw, MainMenu, WelcomeScreen, Footer } from "@excalidraw/excalidraw";
@@ -7,7 +8,7 @@ import debounce from "lodash.debounce";
 import throttle from "lodash.throttle";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, DoorOpen, Check, X, Loader2, FileUp, Download, Image as ImageIcon, Trash2, Moon, Sun, Palette } from "lucide-react";
+import { Lock, DoorOpen, Check, X, Loader2, FileUp, Download, Image as ImageIcon, Trash2, Sun } from "lucide-react";
 import { exportToBlob, serializeAsJSON } from "@excalidraw/excalidraw";
 
 export default function Whiteboard({ roomId }: { roomId: string }) {
@@ -253,9 +254,8 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 setShowPdfPanel(true);
                 // Process PDF
                 try {
-                    // @ts-ignore
+                    // @ts-expect-error: dynamic import handling
                     const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
-                    // @ts-ignore
                     const pdfjsLib = pdfjs.default || pdfjs;
                     if (!pdfjsLib?.GlobalWorkerOptions) throw new Error("PDF Lib Error");
                     const version = pdfjsLib.version || "5.4.530";
