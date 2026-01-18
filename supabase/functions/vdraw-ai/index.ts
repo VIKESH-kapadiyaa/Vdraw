@@ -5,7 +5,7 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
     }
@@ -69,7 +69,8 @@ Deno.serve(async (req) => {
         });
 
     } catch (error) {
-        return new Response(JSON.stringify({ error: (error as Error).message }), {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return new Response(JSON.stringify({ error: errorMessage }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
