@@ -57,7 +57,9 @@ export default function LandingPage() {
     };
 
     fetchCredits();
+  }, []);
 
+  useEffect(() => {
     // Load Recent Rooms
     const history = JSON.parse(localStorage.getItem('vdraw-recent-rooms') || '[]');
     setRecentRooms(history);

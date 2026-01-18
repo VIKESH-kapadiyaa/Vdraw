@@ -3,23 +3,38 @@
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 Deno.serve(async (req: Request) => {
+    // Handle CORS preflight request
     if (req.method === 'OPTIONS') {
-        return new Response('ok', { headers: corsHeaders });
+        return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    if (req.method !== 'POST') {
+        return new Response(JSON.stringify({ error: 'Method Not Allowed' }), {
+            status: 405,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
     }
 
     try {
-        const { imageBase64, roomContext } = await req.json();
+        const body = await req.json().catch(() => null);
+        if (!body) {
+            throw new Error("Invalid or missing JSON body");
+        }
 
-        if (!imageBase64) {
-            throw new Error("Missing imageBase64");
+        const { imageBase64, roomContext } = body;
+
+        if (!imageBase64 || typeof imageBase64 !== 'string') {
+            throw new Error("Missing or invalid 'imageBase64' field");
         }
 
         const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
         if (!openRouterKey) {
-            throw new Error("Missing OPENROUTER_API_KEY configuration");
+            console.error("Missing OPENROUTER_API_KEY environment variable");
+            throw new Error("Server configuration error");
         }
 
         const systemPrompt = `You are an expert Frontend Engineer. Analyze this hand-drawn wireframe. Convert it into a clean, modern React component using Tailwind CSS utility classes. Ensure accessibility and a 'Gen Z' premium aesthetic. Return ONLY the code inside a markdown block.`;
@@ -56,10 +71,21 @@ Deno.serve(async (req: Request) => {
             })
         });
 
-        const data = await response.json();
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.error("OpenRouter API Error:", response.status, errorText);
+            throw new Error(`AI Provider Error (${response.status}): ${errorText}`);
+        }
+
+        const data = await response.json().catch(() => null);
+
+        if (!data) {
+            throw new Error("Invalid JSON response from AI Provider");
+        }
 
         if (data.error) {
-            throw new Error(`OpenRouter Error: ${data.error.message}`);
+            console.error("OpenRouter API Error:", data.error);
+            throw new Error(`AI Service Error: ${data.error.message || 'Unknown error'}`);
         }
 
         const generatedText = data.choices?.[0]?.message?.content || "No code generated.";
@@ -69,9 +95,10 @@ Deno.serve(async (req: Request) => {
         });
 
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error("Edge Function Error:", error);
+        const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
         return new Response(JSON.stringify({ error: errorMessage }), {
-            status: 400,
+            status: 400, // Using 400 for bad requests, logic errors.
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
