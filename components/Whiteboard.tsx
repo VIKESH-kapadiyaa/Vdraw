@@ -33,6 +33,13 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     const [isRequesting, setIsRequesting] = useState(false);
     const myId = useRef(typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString());
 
+    // --- HISTORY TRACKING ---
+    useEffect(() => {
+        const history = JSON.parse(localStorage.getItem('vdraw-recent-rooms') || '[]');
+        const updated = [{ id: roomId, date: new Date().toISOString() }, ...history.filter((r: any) => r.id !== roomId)].slice(0, 5);
+        localStorage.setItem('vdraw-recent-rooms', JSON.stringify(updated));
+    }, [roomId]);
+
     // --- INITIALIZATION & AUTH ---
     useEffect(() => {
         setMounted(true);
