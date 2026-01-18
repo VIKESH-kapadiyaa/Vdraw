@@ -68,9 +68,13 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 api.updateScene({ elements: [], appState: { ...api.getAppState(), collaborators: [], theme: "dark", ...mobileOverrides } });
             }
         } else if (data && data.elements && data.app_state) {
+            // Filter out camera settings to prevents forcing mobile view on desktop
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { zoom, scrollX, scrollY, ...safeAppState } = data.app_state;
+
             api.updateScene({
                 elements: data.elements,
-                appState: { ...data.app_state, theme: "dark", ...mobileOverrides },
+                appState: { ...safeAppState, theme: "dark", ...mobileOverrides },
             });
         }
     }, []);
