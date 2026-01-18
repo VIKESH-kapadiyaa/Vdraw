@@ -209,7 +209,7 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          {/* Recent Boards Section */}
+          {/* Recent Boards List (Local History) */}
           {recentRooms.length > 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-12 max-w-lg mx-auto">
               <p className="text-sm font-medium text-neutral-500 mb-4 uppercase tracking-wider">Recent Boards</p>
