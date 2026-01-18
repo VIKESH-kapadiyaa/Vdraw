@@ -404,7 +404,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     }
 
     return (
-        <div className="flex h-screen w-screen overflow-hidden bg-neutral-950 relative">
+        <div className="flex h-[100dvh] w-screen overflow-hidden bg-neutral-950 relative">
             {/* LEFT PANEL: MAIN CANVAS */}
             <div className={`flex-1 relative transition-all duration-300 ${showPdfPanel ? 'border-r border-neutral-800' : ''}`}>
                 <Excalidraw
@@ -428,7 +428,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                             </WelcomeScreen.Center.Logo>
                             <WelcomeScreen.Center.Heading><span className="text-neutral-400 font-normal">Instant Visual Collaboration</span></WelcomeScreen.Center.Heading>
                             <WelcomeScreen.Center.Menu>
-                                <div className="flex gap-3 mt-4">
+                                <div className="flex gap-3 mt-4 flex-wrap justify-center px-4">
                                     <button className="px-5 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-full text-sm font-medium transition-colors border border-neutral-700">✨ Gen Z</button>
                                     <button className="px-5 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-full text-sm font-medium transition-colors border border-neutral-700">🔥 Fast</button>
                                     <button className="px-5 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-full text-sm font-medium transition-colors border border-neutral-700">🤝 Secure</button>
