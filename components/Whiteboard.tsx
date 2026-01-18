@@ -7,7 +7,8 @@ import debounce from "lodash.debounce";
 import throttle from "lodash.throttle";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, DoorOpen, Check, X, Loader2, FileUp } from "lucide-react";
+import { Lock, DoorOpen, Check, X, Loader2, FileUp, Download, Image as ImageIcon, Trash2, Moon, Sun, Palette } from "lucide-react";
+import { exportToBlob, serializeAsJSON } from "@excalidraw/excalidraw";
 
 export default function Whiteboard({ roomId }: { roomId: string }) {
     const [mounted, setMounted] = useState(false);
@@ -307,6 +308,55 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         toast.dismiss();
     };
 
+    // --- CUSTOM VDRAW ACTIONS ---
+    const handleSaveToDisk = async () => {
+        if (!excalidrawAPI) return;
+        const elements = excalidrawAPI.getSceneElements();
+        const appState = excalidrawAPI.getAppState();
+        const json = serializeAsJSON(elements, appState, { exportBackground: true, viewBackgroundColor: appState.viewBackgroundColor }, "local");
+
+        const blob = new Blob([json], { type: "application/json" });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `vdraw-${new Date().toISOString().slice(0, 10)}.vdraw`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+        toast.success("Saved to Disk");
+    };
+
+    const handleExportImage = async () => {
+        if (!excalidrawAPI) return;
+        try {
+            const blob = await exportToBlob({
+                elements: excalidrawAPI.getSceneElements(),
+                mimeType: "image/png",
+                appState: { ...excalidrawAPI.getAppState(), exportBackground: true, viewBackgroundColor: excalidrawAPI.getAppState().viewBackgroundColor },
+                files: excalidrawAPI.getFiles(),
+            });
+            if (blob) {
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `vdraw-export-${new Date().toISOString().slice(0, 10)}.png`;
+                link.click();
+                window.URL.revokeObjectURL(url);
+                toast.success("Exported as Image");
+            }
+        } catch (e: any) {
+            toast.error("Export Failed: " + e.message);
+        }
+    };
+
+    const handleClearCanvas = () => {
+        if (!excalidrawAPI) return;
+        if (window.confirm("Clear the entire board?")) {
+            excalidrawAPI.resetScene();
+            toast.success("Board Cleared");
+        }
+    }
+
+
     // --- ACCESS & AUTH ACTIONS ---
     const requestAccess = async () => {
         if (!channelRef.current) return;
@@ -380,12 +430,16 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                         </WelcomeScreen.Center>
                     </WelcomeScreen>
                     <MainMenu>
-                        <MainMenu.DefaultItems.Export /><MainMenu.DefaultItems.SaveAsImage />
-                        {/* @ts-ignore */}
+                        <MainMenu.Item onSelect={handleSaveToDisk} icon={<Download className="w-4 h-4" />}>Save to Disk</MainMenu.Item>
+                        <MainMenu.Item onSelect={handleExportImage} icon={<ImageIcon className="w-4 h-4" />}>Export Image</MainMenu.Item>
                         <MainMenu.Item onSelect={() => fileInputRef.current?.click()} icon={<FileUp className="w-4 h-4" />}>Import File...</MainMenu.Item>
-                        <MainMenu.Separator /><MainMenu.DefaultItems.ClearCanvas /><MainMenu.DefaultItems.ToggleTheme /><MainMenu.DefaultItems.ChangeCanvasBackground />
+                        <MainMenu.Separator />
+                        <MainMenu.Item onSelect={handleClearCanvas} icon={<Trash2 className="w-4 h-4 text-red-400" />}><span className="text-red-400">Clear Canvas</span></MainMenu.Item>
+                        <MainMenu.Item onSelect={() => excalidrawAPI.updateScene({ appState: { theme: excalidrawAPI.getAppState().theme === 'light' ? 'dark' : 'light' } })} icon={<Sun className="w-4 h-4" />}>Toggle Theme</MainMenu.Item>
+                        <MainMenu.DefaultItems.ChangeCanvasBackground />
                     </MainMenu>
-                    <Footer><div className="flex gap-4 p-2 opacity-60 text-xs font-mono text-neutral-500 pointer-events-none select-none"><span>v1.0.0</span><span>•</span><span>Encrypted</span></div></Footer>
+                    <Footer><div className="flex gap-4 p-2 opacity-60 text-xs font-mono text-neutral-500 pointer-events-none select-none"><span>Vdraw v2.0</span><span>•</span><span>Secure</span></div></Footer>
+
                 </Excalidraw>
 
                 {/* Host Requests Floating UI */}
