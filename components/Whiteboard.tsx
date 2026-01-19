@@ -483,12 +483,12 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         <div className="flex h-[100dvh] w-screen overflow-hidden bg-neutral-950 relative">
             {/* LEFT PANEL: MAIN CANVAS */}
             <div className="flex-1 relative transition-all duration-300">
-                {/* Board Name Editor */}
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none md:block hidden">
+                {/* Board Name Editor - Positioned top-left after the menu button */}
+                <div className="absolute top-[10px] left-[55px] z-50 pointer-events-none md:block hidden">
                     <input
                         value={boardName}
                         onChange={(e) => setBoardName(e.target.value)}
-                        className="bg-neutral-900/80 backdrop-blur-md border border-white/10 text-white text-sm font-medium px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/50 pointer-events-auto transition-all w-64 text-center hover:bg-neutral-800"
+                        className="bg-neutral-800/50 hover:bg-neutral-800 backdrop-blur-md border border-white/5 text-white/70 hover:text-white text-[13px] font-semibold px-3 py-1.5 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500/50 pointer-events-auto transition-all w-48 text-left"
                         placeholder="Untitled Board"
                     />
                 </div>
