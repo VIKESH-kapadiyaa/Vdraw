@@ -17,13 +17,21 @@ body {
   display: none !important;
 }
 
+/* Hide 'Powered by Excalidraw' and other branding */
+.powered-by-excalidraw,
+.excalidraw-container .footer-links,
+a[href*="excalidraw.com"],
+a[href*="plus.excalidraw.com"],
+.encrypted-icon {
+  display: none !important;
+}
+
 /* Hide Library Trigger */
 .layer-ui__wrapper .sidebar-trigger[aria-label*='Library'],
 .excalidraw .sidebar-trigger {
   display: none !important;
 }
 
-/* Hide Help Dialog Social Links (Aggressive) */
 /* Hide Help Dialog Social Links (Aggressive) */
 .help-dialog .HelpDialog__social-links,
 .help-dialog .HelpDialog__btn-group,
@@ -40,11 +48,52 @@ button[aria-label="Help"],
   display: none !important;
 }
 
-/* Responsive Custom Footer */
+/* Hide 'Open in Excalidraw' button often found in embedded views */
+.excalidraw .layer-ui__wrapper .footer-center .encrypted-icon,
+.excalidraw .layer-ui__wrapper .footer-center a[href*="excalidraw.com"],
+.excalidraw .layer-ui__wrapper .footer-center {
+  display: none !important;
+}
+
+/* Hide Context Menu External Links */
+.context-menu .context-menu-item a[href*="github"],
+.context-menu .context-menu-item a[href*="twitter"],
+.context-menu .context-menu-item a[href*="discord"] {
+  display: none !important;
+}
+
+/* Hide entire "Excalidraw links" section in context menu */
+.context-menu .context-menu-item-group-title {
+  display: none !important;
+}
+
+/* --- Mermaid / Text-to-Diagram Removal --- */
+[aria-label*="Mermaid"],
+[aria-label*="Text to diagram"],
+[title*="Mermaid"],
+[title*="Text to diagram"],
+[data-testid*="mermaid"],
+.excalidraw button[aria-label="Mermaid to Excalidraw"],
+.excalidraw .dropdown-menu-item[aria-label="Mermaid to Excalidraw"],
+.excalidraw .dropdown-menu-item[aria-label="Text to diagram"],
+.excalidraw button[aria-label="Text to diagram"],
+.excalidraw .sidebar-trigger[aria-label*="Mermaid"],
+.excalidraw .sidebar-trigger[aria-label*="diagram"] {
+  display: none !important;
+}
+
+/* Hide Generic AI/Magic buttons if they appear */
+button[aria-label*="AI"],
+button[title*="AI"] {
+  display: none !important;
+}
+
+/* --- Responsive Custom Footer --- */
 @media (max-width: 480px) {
   .custom-footer {
     flex-direction: column !important;
     gap: 5px !important;
+    white-space: nowrap;
   }
 
   .custom-footer button {
@@ -52,4 +101,78 @@ button[aria-label="Help"],
     padding: 5px !important;
     text-align: left !important;
   }
+}
+
+/* --- Atmosphere Controller Effects --- */
+
+/* Rain Overlay */
+.rain-overlay {
+  background-image: url("https://www.transparenttextures.com/patterns/stardust.png");
+  animation: rain-fall 0.4s linear infinite;
+  opacity: 0.3;
+}
+
+@keyframes rain-fall {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: 10px 20px;
+  }
+}
+
+/* Cyber Grid */
+.cyber-grid {
+  background-image:
+    linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+  perspective: 500px;
+  transform-style: preserve-3d;
+  animation: grid-move 5s linear infinite;
+  box-shadow: inset 0 0 100px #000;
+}
+
+@keyframes grid-move {
+  0% {
+    transform: translateY(0) perspective(500px) rotateX(20deg);
+  }
+
+  100% {
+    transform: translateY(50px) perspective(500px) rotateX(20deg);
+  }
+}
+
+/* Zen Garden */
+.zen-garden {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 30px 30px;
+  animation: zen-pulse 10s ease-in-out infinite alternate;
+}
+
+@keyframes zen-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+
+  to {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+}
+
+/* Zen Mode (Hides UI) */
+body.zen-mode-active .App-menu__left,
+body.zen-mode-active .App-bottom-bar,
+body.zen-mode-active .layer-ui__wrapper,
+body.zen-mode-active .App-toolbar {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+body.zen-mode-active canvas {
+  filter: contrast(1.1) brightness(1.1);
 }

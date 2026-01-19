@@ -20,7 +20,15 @@ export default function LandingPage() {
     // 1. Initialize User ID & Fetch Credits
     let storedId = localStorage.getItem("vdraw-user-id");
     if (!storedId) {
-      storedId = crypto.randomUUID();
+      // Robust UUID fallback
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        storedId = crypto.randomUUID();
+      } else {
+        storedId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+          const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      }
       localStorage.setItem("vdraw-user-id", storedId);
     }
     userIdRef.current = storedId;
@@ -112,7 +120,7 @@ export default function LandingPage() {
       }
 
       // 5. Create Room
-      const roomId = crypto.randomUUID();
+      const roomId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
       await supabase.from('rooms').insert({ id: roomId });
       localStorage.setItem(`vdraw-host-${roomId}`, 'true');
 

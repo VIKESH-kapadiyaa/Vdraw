@@ -19,7 +19,7 @@ export default function PricingPage() {
         // Ensure user ID exists
         let id = localStorage.getItem("vdraw-user-id");
         if (!id) {
-            id = crypto.randomUUID();
+            id = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
             localStorage.setItem("vdraw-user-id", id);
         }
         setUserId(id);

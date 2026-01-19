@@ -8,8 +8,9 @@ import debounce from "lodash.debounce";
 import throttle from "lodash.throttle";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, DoorOpen, Check, X, Loader2, FileUp, Download, Image as ImageIcon, Trash2, Sun } from "lucide-react";
+import { Lock, DoorOpen, Check, X, Loader2, FileUp, Download, Image as ImageIcon, Trash2, Sun, Code } from "lucide-react";
 import { exportToBlob, serializeAsJSON } from "@excalidraw/excalidraw";
+import AtmosphereController from "./AtmosphereController";
 
 export default function Whiteboard({ roomId }: { roomId: string }) {
     const [mounted, setMounted] = useState(false);
@@ -20,19 +21,16 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     const isReceivingUpdate = useRef(false);
     const lastVersions = useRef<Record<string, number>>({});
 
-    // PDF Board State
-    const [pdfExcalidrawAPI, setPdfExcalidrawAPI] = useState<any>(null);
-    const [showPdfPanel, setShowPdfPanel] = useState(false);
-    const pdfChannelRef = useRef<any>(null);
-    const isReceivingPdfUpdate = useRef(false);
-    const pdfLastVersions = useRef<Record<string, number>>({});
-
     // Access Control State
     const [isHost, setIsHost] = useState(false);
     const [hasAccess, setHasAccess] = useState(false);
     const [requests, setRequests] = useState<string[]>([]);
     const [isRequesting, setIsRequesting] = useState(false);
-    const myId = useRef(typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString());
+    const myId = useRef(
+        (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+            ? crypto.randomUUID()
+            : Math.random().toString(36).substring(2, 15)
+    );
 
     // --- HISTORY TRACKING ---
     useEffect(() => {
@@ -83,11 +81,6 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     useEffect(() => {
         if (hasAccess && excalidrawAPI) loadData(excalidrawAPI, roomId);
     }, [hasAccess, excalidrawAPI, roomId, loadData]);
-
-    // Load PDF Board
-    useEffect(() => {
-        if (hasAccess && pdfExcalidrawAPI && showPdfPanel) loadData(pdfExcalidrawAPI, `${roomId}-pdf`);
-    }, [hasAccess, pdfExcalidrawAPI, showPdfPanel, roomId, loadData]);
 
 
     // --- REALTIME SYNC (GENERIC) ---
@@ -165,11 +158,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         return () => { supabase.removeChannel(channel); channelRef.current = null; };
     }, [roomId, excalidrawAPI]); // Intentionally re-run if API changes to bind correctly
 
-    // PDF Channel (Data Only)
-    useEffect(() => {
-        if (!showPdfPanel || !pdfExcalidrawAPI) return;
-        return setupChannel(`${roomId}-pdf`, pdfExcalidrawAPI, pdfChannelRef, pdfLastVersions, isReceivingPdfUpdate);
-    }, [roomId, showPdfPanel, pdfExcalidrawAPI, setupChannel]);
+
 
 
     // --- SAVING & BROADCASTING ---
@@ -203,13 +192,11 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     const debouncedSaveMain = useCallback(debounce((e, s) => saveData(roomId, e, s), 2000), [roomId]);
     const throttledBroadcastMain = useCallback(throttle((e, s) => broadcastData(channelRef.current, e, s, lastVersions, isReceivingUpdate), 30), []);
 
-    const debouncedSavePdf = useCallback(debounce((e, s) => saveData(`${roomId}-pdf`, e, s), 2000), [roomId]);
-    const throttledBroadcastPdf = useCallback(throttle((e, s) => broadcastData(pdfChannelRef.current, e, s, pdfLastVersions, isReceivingPdfUpdate), 30), []);
-
     // --- FILE HANDLING ---
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const pdfInputRef = useRef<HTMLInputElement>(null);
 
-    const insertToScene = async (api: any, blob: Blob, opts?: { x?: number, y?: number }) => {
+    const insertToScene = async (api: any, blob: Blob, opts?: { x?: number, y?: number, locked?: boolean }) => {
         if (!api) return;
         const reader = new FileReader();
         reader.readAsDataURL(blob);
@@ -218,13 +205,21 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
             const img = new Image();
             img.onload = () => {
                 const { width, height } = img;
-                const fileId = typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString();
+                const fileId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
                 const appState = api.getAppState();
                 const x = opts?.x ?? (appState.scrollX + (appState.width || window.innerWidth) / 2 - width / 2);
                 const y = opts?.y ?? (appState.scrollY + (appState.height || window.innerHeight) / 2 - height / 2);
 
                 const element = {
-                    id: fileId, type: "image", x, y, width, height, fileId, status: "saved", version: 1, versionNonce: Date.now(), isDeleted: false, fillStyle: "hachure", strokeWidth: 1, strokeStyle: "solid", roughness: 1, opacity: 100, groupIds: [], strokeColor: "#000000", backgroundColor: "transparent", angle: 0, seed: Date.now(), updated: Date.now(), link: null, locked: false
+                    id: fileId,
+                    type: "image",
+                    x, y, width, height,
+                    fileId,
+                    status: "saved", version: 1, versionNonce: Date.now(), isDeleted: false,
+                    fillStyle: "hachure", strokeWidth: 1, strokeStyle: "solid", roughness: 1, opacity: 100,
+                    groupIds: [], strokeColor: "#000000", backgroundColor: "transparent", angle: 0,
+                    seed: Date.now(), updated: Date.now(), link: null,
+                    locked: opts?.locked ?? false
                 };
                 const fileData = { id: fileId, mimeType: blob.type, dataURL, created: Date.now(), lastRetrieved: Date.now() };
 
@@ -243,9 +238,77 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         };
     };
 
-    // Ref to access API inside async file handler
-    const pdfApiRef = useRef<any>(null);
-    useEffect(() => { pdfApiRef.current = pdfExcalidrawAPI; }, [pdfExcalidrawAPI]);
+
+
+    const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        e.target.value = ""; // Reset
+
+        if (file.type !== "application/pdf") {
+            toast.error("Please select a valid PDF file.");
+            return;
+        }
+
+        if (!excalidrawAPI) return;
+
+        toast.loading("Parsing PDF Document...");
+
+        try {
+            // @ts-expect-error: dynamic import handling
+            const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
+            const pdfjsLib = pdfjs.default || pdfjs;
+            if (!pdfjsLib?.GlobalWorkerOptions) throw new Error("PDF Lib Error");
+            const version = pdfjsLib.version || "5.4.530";
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+
+            const arrayBuffer = await file.arrayBuffer();
+            const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+            toast.dismiss();
+            toast.message(`Importing ${doc.numPages} pages...`, {
+                description: "This might take a moment."
+            });
+
+            const SPACING = 50;
+            // Start slightly below current view
+            let currentY = excalidrawAPI.getAppState().scrollY + 100;
+            const startX = excalidrawAPI.getAppState().scrollX + 100;
+
+            for (let i = 1; i <= doc.numPages; i++) {
+                const page = await doc.getPage(i);
+                const viewport = page.getViewport({ scale: 1.5 }); // High res
+                const canvas = document.createElement("canvas");
+                const context = canvas.getContext("2d");
+
+                if (context) {
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    await page.render({ canvasContext: context, viewport }).promise;
+
+                    const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/png'));
+                    if (blob) {
+                        await insertToScene(excalidrawAPI, blob, {
+                            x: startX,
+                            y: currentY,
+                            locked: true
+                        });
+                        currentY += viewport.height + SPACING;
+                    }
+                }
+                // Optional: Toast progress
+                if (i % 5 === 0) toast.loading(`Imported ${i}/${doc.numPages} pages...`);
+            }
+
+            toast.dismiss();
+            toast.success("Document Imported Successfully");
+
+        } catch (error: any) {
+            console.error(error);
+            toast.error("Import Failed: " + error.message);
+        }
+    };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
@@ -254,69 +317,69 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         toast.loading("Processing...");
 
         for (const file of files) {
-            if (file.type === "application/pdf") {
-                setShowPdfPanel(true);
-                // Process PDF
-                try {
-                    // @ts-expect-error: dynamic import handling
-                    const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
-                    const pdfjsLib = pdfjs.default || pdfjs;
-                    if (!pdfjsLib?.GlobalWorkerOptions) throw new Error("PDF Lib Error");
-                    const version = pdfjsLib.version || "5.4.530";
-                    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
-
-                    const arrayBuffer = await file.arrayBuffer();
-                    const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-                    // Wait for API to mount if it wasn't open
-                    let api = pdfApiRef.current;
-                    if (!api) {
-                        // Poll for 2 seconds
-                        for (let i = 0; i < 20; i++) {
-                            await new Promise(r => setTimeout(r, 100));
-                            if (pdfApiRef.current) { api = pdfApiRef.current; break; }
-                        }
-                    }
-
-                    if (!api) {
-                        toast.error("PDF Viewer taking too long. Please try again.");
-                        continue;
-                    }
-
-                    const SPACING = 40;
-                    let currentY = 100;
-                    const startX = 100;
-
-                    for (let i = 1; i <= doc.numPages; i++) {
-                        const page = await doc.getPage(i);
-                        const viewport = page.getViewport({ scale: 1.5 });
-                        const canvas = document.createElement("canvas");
-                        const context = canvas.getContext("2d");
-                        if (context) {
-                            canvas.height = viewport.height;
-                            canvas.width = viewport.width;
-                            await page.render({ canvasContext: context, viewport }).promise;
-                            const blob = await new Promise<Blob | null>(r => canvas.toBlob(r));
-                            if (blob) {
-                                await insertToScene(api, blob, { x: startX, y: currentY });
-                                currentY += viewport.height + SPACING;
-                            }
-                        }
-                    }
-                    toast.success("PDF Loaded in Side Panel");
-
-                } catch (err: any) {
-                    toast.error("PDF Error: " + err.message);
-                }
+            if (excalidrawAPI && file.type.startsWith("image/")) {
+                await insertToScene(excalidrawAPI, file);
             } else {
-                if (excalidrawAPI) {
-                    if (file.type.startsWith("image/")) {
-                        await insertToScene(excalidrawAPI, file);
-                    }
-                }
+                toast.error("Only images are supported.");
             }
         }
         toast.dismiss();
+    };
+
+    const handleTextToDiagram = async () => {
+        if (!excalidrawAPI) return;
+        const input = prompt("Enter Mermaid Syntax (e.g. graph TD; A-->B;):", "graph TD; A[Start]-->B[End];");
+        if (!input) return;
+
+        toast.loading("Rendering Diagram...");
+        try {
+            // Lazy load mermaid
+            // Lazy load mermaid
+            const mermaid = (await import("mermaid")).default;
+            mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+
+            const id = `mermaid-${Date.now()}`;
+            const { svg } = await mermaid.render(id, input);
+
+            // Convert SVG string to Blob
+            const blob = new Blob([svg], { type: "image/svg+xml" });
+            const url = URL.createObjectURL(blob);
+
+            // We need to bake it to a canvas/png because Excalidraw handles images better
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = async () => {
+                const canvas = document.createElement("canvas");
+                canvas.width = img.width * 2; // High res
+                canvas.height = img.height * 2;
+                const ctx = canvas.getContext("2d");
+                if (ctx) {
+                    ctx.scale(2, 2);
+                    ctx.drawImage(img, 0, 0);
+                    try {
+                        canvas.toBlob(async (pngBlob) => {
+                            if (pngBlob) {
+                                await insertToScene(excalidrawAPI, pngBlob, { locked: false });
+                                toast.success("Diagram Created!");
+                            }
+                            URL.revokeObjectURL(url);
+                        }, 'image/png');
+                    } catch (err) {
+                        console.error(err);
+                        URL.revokeObjectURL(url);
+                    }
+                } else {
+                    URL.revokeObjectURL(url);
+                }
+            };
+            img.src = url;
+
+        } catch (e: any) {
+            console.error(e);
+            toast.error("Diagram Error: " + e.message);
+        } finally {
+            toast.dismiss();
+        }
     };
 
     // --- CUSTOM VDRAW ACTIONS ---
@@ -410,7 +473,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     return (
         <div className="flex h-[100dvh] w-screen overflow-hidden bg-neutral-950 relative">
             {/* LEFT PANEL: MAIN CANVAS */}
-            <div className={`flex-1 relative transition-all duration-300 ${showPdfPanel ? 'border-r border-neutral-800' : ''}`}>
+            <div className="flex-1 relative transition-all duration-300">
                 <Excalidraw
                     name="Vdraw Main"
                     theme="dark"
@@ -421,8 +484,6 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     }}
                     UIOptions={{
                         canvasActions: { changeViewBackgroundColor: true, clearCanvas: true, loadScene: false, saveToActiveFile: false, toggleTheme: true, saveAsImage: true },
-                        // @ts-expect-error: missing type
-                        helpDialog: { socials: false }
                     }}
                 >
                     <WelcomeScreen>
@@ -443,9 +504,12 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     <MainMenu>
                         <MainMenu.Item onSelect={handleSaveToDisk} icon={<Download className="w-4 h-4" />}>Save to Disk</MainMenu.Item>
                         <MainMenu.Item onSelect={handleExportImage} icon={<ImageIcon className="w-4 h-4" />}>Export Image</MainMenu.Item>
-                        <MainMenu.Item onSelect={() => fileInputRef.current?.click()} icon={<FileUp className="w-4 h-4" />}>Import File...</MainMenu.Item>
+                        <MainMenu.Item onSelect={() => fileInputRef.current?.click()} icon={<ImageIcon className="w-4 h-4" />}>Import Image</MainMenu.Item>
+                        <MainMenu.Item onSelect={() => pdfInputRef.current?.click()} icon={<FileUp className="w-4 h-4" />}>Import Document (PDF)</MainMenu.Item>
+                        <MainMenu.Item onSelect={handleTextToDiagram} icon={<Code className="w-4 h-4" />}>Mermaid to Vdraw</MainMenu.Item>
                         <MainMenu.Separator />
                         <MainMenu.Item onSelect={handleClearCanvas} icon={<Trash2 className="w-4 h-4 text-red-400" />}><span className="text-red-400">Clear Canvas</span></MainMenu.Item>
+                        <MainMenu.Separator />
                         <MainMenu.Item onSelect={() => excalidrawAPI.updateScene({ appState: { theme: excalidrawAPI.getAppState().theme === 'light' ? 'dark' : 'light' } })} icon={<Sun className="w-4 h-4" />}>Toggle Theme</MainMenu.Item>
                         <MainMenu.DefaultItems.ChangeCanvasBackground />
                     </MainMenu>
@@ -476,46 +540,12 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 </AnimatePresence>
             </div>
 
-            {/* RIGHT PANEL: PDF VIEWER (Toggleable) */}
-            {showPdfPanel && (
-                <div className="w-[45%] h-full relative bg-neutral-900 flex flex-col border-l border-neutral-800 shadow-2xl">
-                    <div className="h-10 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between px-4">
-                        <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
-                            <FileUp className="w-3 h-3" /> PDF & Document Viewer
-                        </span>
-                        <button onClick={() => setShowPdfPanel(false)} className="text-neutral-500 hover:text-white transition-colors">
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>
-                    <div className="flex-1 w-full h-full">
-                        <Excalidraw
-                            name="Vdraw PDF"
-                            theme="dark"
-                            excalidrawAPI={(api) => setPdfExcalidrawAPI(api)}
-                            onChange={(elements, appState) => {
-                                debouncedSavePdf(elements, appState);
-                                throttledBroadcastPdf(elements, appState);
-                            }}
-                            UIOptions={{
-                                canvasActions: { changeViewBackgroundColor: false, clearCanvas: true, loadScene: false, saveToActiveFile: false, toggleTheme: false, saveAsImage: true },
-                            }}
-                        >
-                            <WelcomeScreen>
-                                <WelcomeScreen.Center>
-                                    <WelcomeScreen.Center.Heading>PDF Viewer</WelcomeScreen.Center.Heading>
-                                    <div className="text-neutral-500 text-sm">Upload a PDF to view it here</div>
-                                </WelcomeScreen.Center>
-                            </WelcomeScreen>
-                            {/* Hide footer links */}
-                            <Footer>
-                                <div style={{ display: "none" }} />
-                            </Footer>
-                        </Excalidraw>
-                    </div>
-                </div>
-            )}
 
-            <input type="file" ref={fileInputRef} style={{ display: "none" }} accept="image/*,application/pdf,video/*" multiple onChange={handleFileUpload} />
+            <input type="file" ref={fileInputRef} style={{ display: "none" }} accept="image/*" multiple onChange={handleFileUpload} />
+            <input type="file" ref={pdfInputRef} style={{ display: "none" }} accept="application/pdf" onChange={handlePdfUpload} />
+
+            {/* SUPER FEATURES LAYERS */}
+            <AtmosphereController />
         </div>
     );
 }
