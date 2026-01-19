@@ -13,7 +13,7 @@ export default function LandingPage() {
   const [credits, setCredits] = useState<number | null>(null);
   const [isPro, setIsPro] = useState(false);
   const [renewalDate, setRenewalDate] = useState<string | null>(null);
-  const [recentRooms, setRecentRooms] = useState<{ id: string; date: string }[]>([]);
+
   const userIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -67,11 +67,7 @@ export default function LandingPage() {
     fetchCredits();
   }, []);
 
-  useEffect(() => {
-    // Load Recent Rooms
-    const history = JSON.parse(localStorage.getItem('vdraw-recent-rooms') || '[]');
-    setRecentRooms(history);
-  }, []);
+
 
   const handleCreateRoom = async () => {
     if (!userIdRef.current) return;
@@ -217,29 +213,6 @@ export default function LandingPage() {
               </button>
             </Link>
           </div>
-
-          {/* Recent Boards List (Local History) */}
-          {recentRooms.length > 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-12 max-w-lg mx-auto w-full px-4">
-              <p className="text-sm font-medium text-neutral-500 mb-4 uppercase tracking-wider text-left pl-1">Recent Boards</p>
-              <div className="flex flex-col gap-2">
-                {recentRooms.map((room) => (
-                  <Link key={room.id} href={`/room/${room.id}`} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors group">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="w-8 h-8 rounded-full bg-neutral-800 flex-shrink-0 flex items-center justify-center text-xs font-mono text-neutral-400 group-hover:bg-violet-500/20 group-hover:text-violet-300 transition-colors">
-                        #{room.id.slice(0, 2)}
-                      </div>
-                      <div className="text-left overflow-hidden">
-                        <div className="text-sm font-medium text-neutral-200 truncate">Untitled Board</div>
-                        <div className="text-xs text-neutral-500 text-[10px] uppercase truncate">{new Date(room.date).toLocaleDateString()} • {new Date(room.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-neutral-600 group-hover:text-white transition-colors flex-shrink-0" />
-                  </Link>
-                ))}
-              </div>
-            </motion.div>
-          )}
 
           {/* Support Section */}
           <footer className="mt-20 pb-10 text-center">
