@@ -2,10 +2,10 @@
 import React, { useRef, useEffect } from "react";
 import { motion, useDragControls } from "framer-motion";
 import { X, Minus, Maximize2 } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { useStore, WindowType } from "@/lib/store";
 
 interface FloatingWindowProps {
-    id: 'physics' | 'library' | 'books' | 'toolkit' | 'settings';
+    id: WindowType;
     title: string;
     icon?: React.ReactNode;
     children: React.ReactNode;

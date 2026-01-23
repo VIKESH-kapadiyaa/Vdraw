@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type WindowType = 'physics' | 'library' | 'books' | 'toolkit' | 'settings' | 'diagrams' | 'none';
+export type WindowType = 'physics' | 'library' | 'books' | 'toolkit' | 'settings' | 'diagrams' | 'none';
 
 interface AppState {
     // Window Management
