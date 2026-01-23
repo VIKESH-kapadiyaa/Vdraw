@@ -1,0 +1,9 @@
+<svg viewBox="0 0 100 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Beaker -->
+  <path d="M20 20 L20 150 Q20 170 50 170 Q80 170 80 150 L80 20" fill="none" stroke="#3b82f6" stroke-width="2"/>
+  <!-- Liquid -->
+  <path d="M25 140 Q50 150 75 140 L75 100 Q50 110 25 100 Z" fill="#93c5fd" opacity="0.5"/>
+  <!-- Burner -->
+  <rect x="35" y="180" width="30" height="15" fill="#475569"/>
+  <path d="M45 180 L45 165 L55 165 L55 180" fill="orange" stroke="red"/>
+</svg>

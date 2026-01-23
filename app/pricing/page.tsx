@@ -60,14 +60,18 @@ export default function PricingPage() {
         });
     };
 
-    const handleSuccess = async (planType: 'monthly' | 'annual') => {
+    const handleSuccess = async (planType: 'monthly' | 'annual' | 'daily' | 'exam') => {
         // Calculate Dates
         const now = new Date();
         let endDate = new Date();
         if (planType === 'monthly') {
             endDate.setMonth(now.getMonth() + 1);
-        } else {
+        } else if (planType === 'annual') {
             endDate.setFullYear(now.getFullYear() + 1);
+        } else if (planType === 'daily') {
+            endDate.setDate(now.getDate() + 1);
+        } else if (planType === 'exam') {
+            endDate.setMonth(now.getMonth() + 3);
         }
 
         // Update Supabase
@@ -98,10 +102,14 @@ export default function PricingPage() {
         }
     }
 
-    const handlePayment = async (planType: 'monthly' | 'annual') => {
+    const handlePayment = async (planType: 'monthly' | 'annual' | 'daily' | 'exam') => {
         if (!userId) return;
 
-        let amount = planType === 'monthly' ? 199 : 1400; // INR
+        let amount = 0;
+        if (planType === 'monthly') amount = 199;
+        if (planType === 'annual') amount = 1400;
+        if (planType === 'daily') amount = 9;
+        if (planType === 'exam') amount = 499;
 
         // Apply Coupon Logic
         if (appliedCoupon === "ZEROVDRAW") {
@@ -138,7 +146,7 @@ export default function PricingPage() {
             amount: amount * 100, // Amount in paise
             currency: "INR",
             name: "Vdraw Pro",
-            description: `${planType === 'monthly' ? 'Monthly' : 'Annual'} Subscription`,
+            description: `${planType.charAt(0).toUpperCase() + planType.slice(1)} Subscription`,
             image: "/vdraw-logo.png",
             handler: async function (response: any) {
                 // Payment Success
@@ -228,7 +236,31 @@ export default function PricingPage() {
                 </motion.div>
 
                 {/* Pricing Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl pb-20">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full max-w-7xl pb-20">
+
+                    {/* Daily Pass */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-neutral-900/50 backdrop-blur-xl border border-white/5 rounded-3xl p-6 hover:border-violet-500/30 transition-all group flex flex-col"
+                    >
+                        <div className="mb-4 p-3 w-12 h-12 bg-neutral-800 rounded-2xl flex items-center justify-center">
+                            <Zap className="w-6 h-6 text-yellow-400" />
+                        </div>
+                        <h3 className="text-xl font-medium text-neutral-300">Daily Pass</h3>
+                        <div className="mt-2 mb-4">
+                            <span className="text-3xl font-bold text-white">₹9</span>
+                            <span className="text-neutral-500 ml-2">/ day</span>
+                        </div>
+                        <ul className="space-y-3 mb-6 flex-1 text-sm">
+                            <Feature text="24h Pro Access" />
+                            <Feature text="Unlimited Rooms" />
+                            <Feature text="No Auto-Renew" />
+                        </ul>
+                        <button disabled={loading} onClick={() => handlePayment('daily')} className="w-full py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold transition-colors border border-white/5">
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Buy Pass"}
+                        </button>
+                    </motion.div>
 
                     {/* Monthly Plan */}
                     <motion.div
@@ -320,6 +352,32 @@ export default function PricingPage() {
                             className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-bold shadow-lg shadow-violet-900/40 transition-all transform active:scale-95"
                         >
                             {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Get Annual Access"}
+                        </button>
+                    </motion.div>
+
+                    {/* Exam Season Pass */}
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="bg-neutral-900/50 backdrop-blur-xl border border-white/5 rounded-3xl p-6 hover:border-fuchsia-500/30 transition-all group flex flex-col relative overflow-hidden"
+                    >
+                        <div className="absolute -right-10 -top-10 w-24 h-24 bg-fuchsia-500/20 blur-2xl rounded-full pointer-events-none group-hover:bg-fuchsia-500/40 transition-colors" />
+                        <div className="mb-4 p-3 w-12 h-12 bg-neutral-800 rounded-2xl flex items-center justify-center z-10">
+                            <Star className="w-6 h-6 text-fuchsia-400" />
+                        </div>
+                        <h3 className="text-xl font-medium text-neutral-300">Exam Pass</h3>
+                        <div className="mt-2 mb-4">
+                            <span className="text-3xl font-bold text-white">₹499</span>
+                            <span className="text-neutral-500 ml-2">/ 3 mo</span>
+                        </div>
+                        <ul className="space-y-3 mb-6 flex-1 text-sm">
+                            <Feature text="3 Months Access" />
+                            <Feature text="Perfect for Semesters" />
+                            <Feature text="Save vs Monthly" iconColor="text-emerald-400" />
+                        </ul>
+                        <button disabled={loading} onClick={() => handlePayment('exam')} className="w-full py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold transition-colors border border-white/5 z-10">
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Get Season Pass"}
                         </button>
                     </motion.div>
 

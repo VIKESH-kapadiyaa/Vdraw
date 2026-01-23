@@ -11,6 +11,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Lock, DoorOpen, Check, X, Loader2, FileUp, Download, Image as ImageIcon, Trash2, Sun, Code } from "lucide-react";
 import { exportToBlob, serializeAsJSON } from "@excalidraw/excalidraw";
 import AtmosphereController from "./AtmosphereController";
+import CommandDock from "./CommandDock";
+import OSLayout from "./layout/OSLayout";
+import { useStore } from "@/lib/store";
+import { LockOpen, WifiOff, BookOpen, Library, Briefcase } from "lucide-react";
+import { useBandwidth } from "../lib/hooks/useBandwidth";
+import OnboardingTour from "./onboarding/OnboardingTour";
 
 export default function Whiteboard({ roomId }: { roomId: string }) {
     const [mounted, setMounted] = useState(false);
@@ -20,6 +26,13 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     const channelRef = useRef<any>(null);
     const isReceivingUpdate = useRef(false);
     const lastVersions = useRef<Record<string, number>>({});
+
+    // Feature Flags & States
+    const { toggleWindow, openWindow } = useStore();
+    const [isRoomLocked, setIsRoomLocked] = useState(false);
+    const [activeTool, setActiveTool] = useState<any>({ type: "selection" });
+    const isLowBandwidth = useBandwidth();
+    const [showOnboarding, setShowOnboarding] = useState(false);
 
     // Access Control State
     const [isHost, setIsHost] = useState(false);
@@ -58,12 +71,43 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         if (isOwner || canEnter) {
             setHasAccess(true);
         }
+
+        // Check Initial Lock Status
+        const checkLockError = async () => {
+            // Basic UUID validator regex
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomId);
+            if (!isUUID) return;
+
+            const { data } = await supabase.from('rooms').select('is_locked').eq('id', roomId).single();
+            if (data) setIsRoomLocked(data?.is_locked);
+        };
+        checkLockError();
+
+        // Check Onboarding
+        const hasSeenOnboarding = localStorage.getItem('vdraw-onboarding-completed');
+        if (!hasSeenOnboarding) {
+            setShowOnboarding(true);
+        }
+
     }, [roomId]);
+
+    // Keyboard Shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+                e.preventDefault();
+                toggleWindow('library');
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     // --- DATA SYNC LOGIC (GENERIC) ---
     const loadData = useCallback(async (api: any, id: string) => {
         if (!api || !id) return;
-        const { data, error } = await supabase.from("drawings").select("*").eq("id", id).single();
+        // Fetch from 'rooms' table (SaaS Architecture)
+        const { data, error } = await supabase.from("rooms").select("scene_data").eq("id", id).single();
 
         const isMobile = window.innerWidth < 768;
         const mobileOverrides = isMobile ? {
@@ -71,18 +115,21 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         } : {};
 
         if (error || !data) {
+            // New room or error
             if (api.getSceneElements().length === 0) {
                 api.updateScene({ elements: [], appState: { ...api.getAppState(), collaborators: [], theme: "dark", ...mobileOverrides } });
             }
-        } else if (data && data.elements && data.app_state) {
-            // Filter out camera settings to prevents forcing mobile view on desktop
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { zoom, scrollX, scrollY, ...safeAppState } = data.app_state;
+        } else if (data && data.scene_data) {
+            const { elements, appState } = data.scene_data;
+            if (elements && appState) {
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { zoom, scrollX, scrollY, activeTool, ...safeAppState } = appState;
 
-            api.updateScene({
-                elements: data.elements,
-                appState: { ...safeAppState, theme: "dark", ...mobileOverrides },
-            });
+                api.updateScene({
+                    elements: elements,
+                    appState: { ...safeAppState, theme: "dark", ...mobileOverrides },
+                });
+            }
         }
     }, []);
 
@@ -135,6 +182,29 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     if (!requests.includes(reqId)) toast.info("New request to join!");
                 }
             })
+            // --- TEACHER COMMANDS LISTENER ---
+            .on('broadcast', { event: 'teacher-command' }, (payload) => {
+                const { command, value } = payload.payload;
+                if (localStorage.getItem(`vdraw-host-${roomId}`) === 'true') return; // Ignore if host (we set it locally)
+
+                if (command === 'set-lock') {
+                    if (value) toast("Classroom Locked", { description: "Teacher has blocked editing.", icon: <Lock className="w-4 h-4 text-orange-400" /> });
+                    else toast("Classroom Unlocked", { icon: <LockOpen className="w-4 h-4 text-emerald-400" /> });
+                    setIsRoomLocked(value); // Sync local state
+                }
+                if (command === 'set-focus') {
+                    // Focus mode logic (sync viewport)
+                    if (value) toast("Focus Mode Enabled", { description: "You are now following the teacher." });
+                    else toast("Focus Mode Disabled");
+                    // TODO: Implement viewport sync in draw-update
+                }
+                if (command === 'set-eyes-up') {
+                    // Eyes up logic
+                    // We need a global overlay for this
+                    if (value) document.body.classList.add('eyes-up-active');
+                    else document.body.classList.remove('eyes-up-active');
+                }
+            })
             .on('broadcast', { event: 'grant-access' }, (payload) => {
                 if (payload.payload.targetId === myId.current) {
                     setHasAccess(true);
@@ -148,6 +218,16 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                 if (payload.payload.targetId === myId.current) {
                     setIsRequesting(false);
                     toast.error("Access Denied");
+                }
+            })
+            // Listen for Lock Status Changes
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
+                const newStatus = payload.new.is_locked;
+                setIsRoomLocked(newStatus);
+                if (newStatus) {
+                    toast("Classroom Locked", { description: "Teacher has enabled master control.", icon: <Lock className="w-4 h-4 text-orange-400" /> });
+                } else {
+                    toast("Classroom Unlocked", { description: "You can now edit.", icon: <LockOpen className="w-4 h-4 text-emerald-400" /> });
                 }
             });
 
@@ -168,16 +248,46 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     }, [roomId, excalidrawAPI]); // Intentionally re-run if API changes to bind correctly
 
 
+    // --- LOCK ENFORCEMENT ---
+    useEffect(() => {
+        if (!excalidrawAPI) return;
+        // If locked and NOT host, disable editing
+        if (isRoomLocked && !isHost) {
+            excalidrawAPI.updateScene({ appState: { viewModeEnabled: true } });
+        } else if (!isRoomLocked && !isHost) {
+            // Re-enable if unlocked (and check if it was previously disabled by lock)
+            excalidrawAPI.updateScene({ appState: { viewModeEnabled: false } });
+        }
+    }, [isRoomLocked, isHost, excalidrawAPI]);
+
+    // --- HOST ACTIONS ---
+    const toggleRoomLock = async () => {
+        if (!isHost) return;
+        const newStatus = !isRoomLocked;
+        // Optimistic UI
+        setIsRoomLocked(newStatus);
+
+        const { error } = await supabase.from('rooms').update({ is_locked: newStatus }).eq('id', roomId);
+        if (error) {
+            toast.error("Failed to update lock status");
+            setIsRoomLocked(!newStatus); // Revert
+        } else {
+            toast.success(newStatus ? "Room Locked for Students" : "Room Unlocked");
+        }
+    };
+
+
 
 
     // --- SAVING & BROADCASTING ---
     const saveData = async (id: string, elements: any, appState: any) => {
         try {
-            await supabase.from("drawings").upsert({
-                id: id,
-                elements,
-                app_state: { ...appState, collaborators: [] }
-            });
+            // Cloud Persistence (Vdraw Pro Feature)
+            // Saves to 'rooms' table which users manage in Dashboard
+            await supabase.from("rooms").update({
+                scene_data: { elements, appState: { ...appState, collaborators: [] } },
+                updated_at: new Date().toISOString()
+            }).eq('id', id);
         } catch (e) { console.error("Save error", e); }
     };
 
@@ -199,7 +309,8 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     };
 
     const debouncedSaveMain = useCallback(debounce((e, s) => saveData(roomId, e, s), 2000), [roomId]);
-    const throttledBroadcastMain = useCallback(throttle((e, s) => broadcastData(channelRef.current, e, s, lastVersions, isReceivingUpdate), 30), []);
+    // Dynamic throttling based on bandwidth
+    const throttledBroadcastMain = useCallback(throttle((e, s) => broadcastData(channelRef.current, e, s, lastVersions, isReceivingUpdate), isLowBandwidth ? 300 : 30), [isLowBandwidth]);
 
     // --- FILE HANDLING ---
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -342,42 +453,27 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
 
         toast.loading("Rendering Diagram...");
         try {
-            // Lazy load mermaid
-            // Lazy load mermaid
+            // Render Mermaid to SVG
             const mermaid = (await import("mermaid")).default;
             mermaid.initialize({ startOnLoad: false, theme: 'dark' });
-
             const id = `mermaid-${Date.now()}`;
             const { svg } = await mermaid.render(id, input);
 
-            // Convert SVG string to Blob
-            const blob = new Blob([svg], { type: "image/svg+xml" });
+            // Create a Blob from the SVG
+            const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
             const url = URL.createObjectURL(blob);
 
-            // We need to bake it to a canvas/png because Excalidraw handles images better
+            // Creating an Image from the SVG blob
             const img = new Image();
-            img.crossOrigin = "anonymous";
             img.onload = async () => {
-                const canvas = document.createElement("canvas");
-                canvas.width = img.width * 2; // High res
-                canvas.height = img.height * 2;
-                const ctx = canvas.getContext("2d");
-                if (ctx) {
-                    ctx.scale(2, 2);
-                    ctx.drawImage(img, 0, 0);
-                    try {
-                        canvas.toBlob(async (pngBlob) => {
-                            if (pngBlob) {
-                                await insertToScene(excalidrawAPI, pngBlob, { locked: false });
-                                toast.success("Diagram Created!");
-                            }
-                            URL.revokeObjectURL(url);
-                        }, 'image/png');
-                    } catch (err) {
-                        console.error(err);
-                        URL.revokeObjectURL(url);
-                    }
-                } else {
+                // If we use the raw SVG blob, Excalidraw can usually handle it as an image file
+                // We will try to prioritize that to avoid canvas tainting
+                try {
+                    await insertToScene(excalidrawAPI, blob, { locked: false });
+                    toast.success("Diagram Created!");
+                } catch (err) {
+                    console.error("Direct SVG insert failed", err);
+                } finally {
                     URL.revokeObjectURL(url);
                 }
             };
@@ -483,54 +579,77 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         <div className="flex h-[100dvh] w-screen overflow-hidden bg-neutral-950 relative">
             {/* LEFT PANEL: MAIN CANVAS */}
             <div className="flex-1 relative transition-all duration-300">
-                {/* Board Name Editor - Positioned top-left after the menu button */}
-                <div className="absolute top-[10px] left-[55px] z-50 pointer-events-none md:block hidden">
-                    <input
-                        value={boardName}
-                        onChange={(e) => setBoardName(e.target.value)}
-                        className="bg-neutral-800/50 hover:bg-neutral-800 backdrop-blur-md border border-white/5 text-white/70 hover:text-white text-[13px] font-semibold px-3 py-1.5 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500/50 pointer-events-auto transition-all w-48 text-left"
-                        placeholder="Untitled Board"
-                    />
+                {/* Board Name Editor - Premium Floating Style */}
+                <div className="absolute top-3 left-14 z-50 md:block hidden">
+                    <div className="relative group">
+                        <div className="absolute -inset-1 bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 rounded-xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <input
+                            value={boardName}
+                            onChange={(e) => setBoardName(e.target.value)}
+                            className="relative bg-neutral-900/80 backdrop-blur-xl border border-white/[0.08] text-white/90 text-sm font-medium px-4 py-2 rounded-xl focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all w-52 placeholder:text-neutral-600 shadow-lg shadow-black/20"
+                            placeholder="Untitled Board"
+                        />
+                    </div>
                 </div>
 
                 <Excalidraw
                     name={boardName}
                     theme="dark"
+                    initialData={{ appState: { theme: 'dark', activeTool: { type: 'selection', customType: null, lastActiveTool: null, locked: false } } }}
                     excalidrawAPI={(api) => setExcalidrawAPI(api)}
                     onChange={(elements, appState) => {
                         debouncedSaveMain(elements, appState);
                         throttledBroadcastMain(elements, appState);
+                        // Track tool for Dock
+                        if (appState.activeTool.type !== activeTool.type) {
+                            setActiveTool(appState.activeTool);
+                        }
                     }}
                     UIOptions={{
                         canvasActions: { changeViewBackgroundColor: true, clearCanvas: true, loadScene: false, saveToActiveFile: false, toggleTheme: true, saveAsImage: true },
                     }}
                 >
+                    {/* Minimal Welcome Screen - Clean UI */}
                     <WelcomeScreen>
                         <WelcomeScreen.Center>
                             <WelcomeScreen.Center.Logo>
-                                <div className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-fuchsia-500 tracking-tight" style={{ filter: 'drop-shadow(0px 0px 20px rgba(139, 92, 246, 0.3))' }}>Vdraw</div>
-                            </WelcomeScreen.Center.Logo>
-                            <WelcomeScreen.Center.Heading><span className="text-neutral-400 font-normal">Instant Visual Collaboration</span></WelcomeScreen.Center.Heading>
-                            <WelcomeScreen.Center.Menu>
-                                <div className="flex gap-3 mt-4 flex-wrap justify-center px-4">
-                                    <button className="px-5 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-full text-sm font-medium transition-colors border border-neutral-700">✨ Gen Z</button>
-                                    <button className="px-5 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-full text-sm font-medium transition-colors border border-neutral-700">🔥 Fast</button>
-                                    <button className="px-5 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-full text-sm font-medium transition-colors border border-neutral-700">🤝 Secure</button>
+                                <div className="relative">
+                                    <div className="absolute -inset-12 bg-gradient-to-r from-violet-600/20 via-fuchsia-600/20 to-violet-600/20 rounded-full blur-3xl opacity-40" />
+                                    <div className="relative text-7xl font-black text-transparent bg-clip-text bg-gradient-to-br from-violet-400 via-fuchsia-400 to-violet-400 tracking-tighter" style={{ filter: 'drop-shadow(0px 4px 32px rgba(139, 92, 246, 0.3))' }}>
+                                        Vdraw
+                                    </div>
                                 </div>
-                            </WelcomeScreen.Center.Menu>
+                            </WelcomeScreen.Center.Logo>
+                            <WelcomeScreen.Center.Heading>
+                                <span className="text-neutral-600 font-light text-base tracking-[0.3em] uppercase">Where Ideas Take Flight</span>
+                            </WelcomeScreen.Center.Heading>
                         </WelcomeScreen.Center>
                     </WelcomeScreen>
                     <MainMenu>
                         <MainMenu.Item onSelect={handleSaveToDisk} icon={<Download className="w-4 h-4" />}>Save to Disk</MainMenu.Item>
                         <MainMenu.Item onSelect={handleExportImage} icon={<ImageIcon className="w-4 h-4" />}>Export Image</MainMenu.Item>
                         <MainMenu.Item onSelect={() => fileInputRef.current?.click()} icon={<ImageIcon className="w-4 h-4" />}>Import Image</MainMenu.Item>
-                        <MainMenu.Item onSelect={() => pdfInputRef.current?.click()} icon={<FileUp className="w-4 h-4" />}>Import Document (PDF)</MainMenu.Item>
-                        <MainMenu.Item onSelect={handleTextToDiagram} icon={<Code className="w-4 h-4" />}>Mermaid to Vdraw</MainMenu.Item>
+                        <MainMenu.Item onSelect={() => openWindow('books')} icon={<Library className="w-4 h-4" />}>Digital Books (V-Book)</MainMenu.Item>
+                        <MainMenu.Item onSelect={() => openWindow('toolkit')} icon={<Briefcase className="w-4 h-4" />}>Classroom Toolkit</MainMenu.Item>
+                        <MainMenu.Item onSelect={() => openWindow('library')} icon={<BookOpen className="w-4 h-4" />}>NCERT Archive</MainMenu.Item>
+                        <MainMenu.Item onSelect={() => openWindow('diagrams')} icon={<Code className="w-4 h-4" />}>Diagram Builder</MainMenu.Item>
                         <MainMenu.Separator />
                         <MainMenu.Item onSelect={handleClearCanvas} icon={<Trash2 className="w-4 h-4 text-red-400" />}><span className="text-red-400">Clear Canvas</span></MainMenu.Item>
                         <MainMenu.Separator />
                         <MainMenu.Item onSelect={() => excalidrawAPI.updateScene({ appState: { theme: excalidrawAPI.getAppState().theme === 'light' ? 'dark' : 'light' } })} icon={<Sun className="w-4 h-4" />}>Toggle Theme</MainMenu.Item>
                         <MainMenu.DefaultItems.ChangeCanvasBackground />
+                        {isHost && (
+                            <>
+                                <MainMenu.Separator />
+                                <MainMenu.Item onSelect={toggleRoomLock} icon={isRoomLocked ? <LockOpen className="w-4 h-4" /> : <Lock className="w-4 h-4" />}>
+                                    {isRoomLocked ? "Unlock Classroom" : "Lock Classroom"}
+                                </MainMenu.Item>
+                            </>
+                        )}
+                        <MainMenu.Separator />
+                        <MainMenu.Item onSelect={() => openWindow('physics')} icon={<motion.div animate={{ y: [0, -2, 0] }} transition={{ repeat: Infinity, duration: 2 }} className="w-2 h-2 rounded-full bg-violet-400" />}>
+                            Open Physics Lab
+                        </MainMenu.Item>
                     </MainMenu>
                     <Footer><div className="flex gap-4 p-2 opacity-60 text-xs font-mono text-neutral-500 pointer-events-none select-none"><span>Vdraw v2.0</span><span>•</span><span>Secure</span></div></Footer>
 
@@ -564,7 +683,23 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
             <input type="file" ref={pdfInputRef} style={{ display: "none" }} accept="application/pdf" onChange={handlePdfUpload} />
 
             {/* SUPER FEATURES LAYERS */}
-            <AtmosphereController />
+            <AtmosphereController isLowBandwidth={isLowBandwidth} />
+            {isLowBandwidth && <div className="absolute top-4 left-4 z-50 bg-red-500/20 text-red-300 text-xs px-2 py-1 rounded-full flex items-center gap-1 pointer-events-none border border-red-500/30"><WifiOff className="w-3 h-3" /> Low Data Mode</div>}
+
+            {/* Eyes Up Overlay */}
+            <div className="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center pointer-events-auto transition-opacity duration-500 opacity-0 pointer-events-none [.eyes-up-active_&]:opacity-100 [.eyes-up-active_&]:pointer-events-auto">
+                <div className="text-center space-y-4">
+                    <div className="w-20 h-20 bg-neutral-800 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                        <div className="w-3 h-3 bg-red-500 rounded-full" />
+                    </div>
+                    <h2 className="text-4xl font-bold text-white tracking-widest">EYES UP</h2>
+                    <p className="text-neutral-500">Please look at the teacher/board.</p>
+                </div>
+            </div>
+
+            <CommandDock excalidrawAPI={excalidrawAPI} activeTool={activeTool} />
+            <OSLayout excalidrawAPI={excalidrawAPI} channel={channelRef.current} />
+            <OnboardingTour isOpen={showOnboarding} onClose={() => { setShowOnboarding(false); localStorage.setItem('vdraw-onboarding-completed', 'true'); }} />
         </div>
     );
 }

@@ -4,8 +4,35 @@ html,
 body {
   padding: 0;
   margin: 0;
-  background-color: #121212;
-  /* Match Excalidraw dark theme to prevent flash */
+  /* Premium Deep Space Background */
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(120, 119, 198, 0.15), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(139, 92, 246, 0.12), transparent),
+    radial-gradient(ellipse 50% 30% at 0% 80%, rgba(236, 72, 153, 0.08), transparent),
+    linear-gradient(180deg, #0a0a0a 0%, #0d0d0d 50%, #0a0a0a 100%);
+  background-attachment: fixed;
+  overflow: hidden;
+  color-scheme: dark;
+}
+
+/* Hide Excalidraw Standard Toolbar */
+.excalidraw .App-toolbar {
+  display: none !important;
+}
+
+/* Hide Excalidraw Bottom Left Controls (we have our own) */
+.excalidraw .layer-ui__wrapper .App-bottom-bar,
+.excalidraw .zoom-actions,
+.excalidraw .undo-redo-buttons,
+.excalidraw .layer-ui__wrapper__footer-left,
+.excalidraw .Island.zoom-actions {
+  display: none !important;
+}
+
+/* Hide Excalidraw Top Right Panel (settings, fullscreen) */
+.excalidraw .layer-ui__wrapper__top-right,
+.excalidraw .layer-ui__wrapper__footer-right {
+  display: none !important;
 }
 
 /* Hides the official Excalidraw store links and Library button */
@@ -67,14 +94,14 @@ button[aria-label="Help"],
   display: none !important;
 }
 
-/* --- Mermaid / Text-to-Diagram Removal --- */
+
 [aria-label*="Mermaid"],
 [aria-label*="Text to diagram"],
 [title*="Mermaid"],
 [title*="Text to diagram"],
 [data-testid*="mermaid"],
-.excalidraw button[aria-label="Mermaid to Excalidraw"],
-.excalidraw .dropdown-menu-item[aria-label="Mermaid to Excalidraw"],
+.excalidraw button[aria-label="Mermaid to vdraw"],
+.excalidraw .dropdown-menu-item[aria-label="Mermaid to vdraw"],
 .excalidraw .dropdown-menu-item[aria-label="Text to diagram"],
 .excalidraw button[aria-label="Text to diagram"],
 .excalidraw .sidebar-trigger[aria-label*="Mermaid"],

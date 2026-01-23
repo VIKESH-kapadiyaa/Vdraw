@@ -146,6 +146,7 @@ export default function LandingPage() {
           Vdraw
         </div>
         <div className="flex items-center gap-4 md:gap-6">
+          <Link href="/login" className="text-neutral-400 hover:text-white transition font-medium text-sm md:text-base hidden sm:block">Login</Link>
           <Link href="/pricing" className="text-neutral-400 hover:text-white transition font-medium text-sm md:text-base">Pricing</Link>
           {isPro && (
             <div className="flex flex-col items-end">
