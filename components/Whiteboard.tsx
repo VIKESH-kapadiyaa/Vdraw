@@ -78,8 +78,8 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
             const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomId);
             if (!isUUID) return;
 
-            const { data } = await supabase.from('rooms').select('is_locked').eq('id', roomId).single();
-            if (data) setIsRoomLocked(data?.is_locked);
+            const { data } = await supabase.from('rooms').select('is_locked').eq('id', roomId).maybeSingle();
+            if (data) setIsRoomLocked(data?.is_locked ?? false);
         };
         checkLockError();
 
@@ -639,6 +639,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                         <MainMenu.Item onSelect={handleSaveToDisk} icon={<Download className="w-4 h-4" />}>Save to Disk</MainMenu.Item>
                         <MainMenu.Item onSelect={handleExportImage} icon={<ImageIcon className="w-4 h-4" />}>Export Image</MainMenu.Item>
                         <MainMenu.Item onSelect={() => fileInputRef.current?.click()} icon={<ImageIcon className="w-4 h-4" />}>Import Image</MainMenu.Item>
+                        <MainMenu.Item onSelect={() => pdfInputRef.current?.click()} icon={<FileUp className="w-4 h-4" />}>Import PDF Document</MainMenu.Item>
                         <MainMenu.Item onSelect={() => openWindow('books')} icon={<Library className="w-4 h-4" />}>Digital Books (V-Book)</MainMenu.Item>
                         <MainMenu.Item onSelect={() => openWindow('toolkit')} icon={<Briefcase className="w-4 h-4" />}>Classroom Toolkit</MainMenu.Item>
                         <MainMenu.Item onSelect={() => openWindow('library')} icon={<BookOpen className="w-4 h-4" />}>NCERT Archive</MainMenu.Item>
