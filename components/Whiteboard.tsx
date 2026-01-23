@@ -107,7 +107,9 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     const loadData = useCallback(async (api: any, id: string) => {
         if (!api || !id) return;
         // Fetch from 'rooms' table (SaaS Architecture)
-        const { data, error } = await supabase.from("rooms").select("scene_data").eq("id", id).single();
+        // Fetch from 'rooms' table (SaaS Architecture)
+        // usage of maybeSingle prevents 406 error if row doesn't exist
+        const { data, error } = await supabase.from("rooms").select("scene_data").eq("id", id).maybeSingle();
 
         const isMobile = window.innerWidth < 768;
         const mobileOverrides = isMobile ? {
@@ -284,11 +286,19 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         try {
             // Cloud Persistence (Vdraw Pro Feature)
             // Saves to 'rooms' table which users manage in Dashboard
-            await supabase.from("rooms").update({
+            const { error } = await supabase.from("rooms").update({
                 scene_data: { elements, appState: { ...appState, collaborators: [] } },
                 updated_at: new Date().toISOString()
             }).eq('id', id);
-        } catch (e) { console.error("Save error", e); }
+
+            if (error) {
+                console.error("Supabase Save Error:", error);
+                if (error.code === '406') {
+                    // Handle specific 406 error if needed, usually schema mismatch
+                    console.warn("Schema mismatch detected. Check Supabase 'scene_data' column type.");
+                }
+            }
+        } catch (e) { console.error("Save execution error", e); }
     };
 
     const broadcastData = async (channel: any, elements: any[], appState: any, versionsRef: any, receivingRef: any) => {
