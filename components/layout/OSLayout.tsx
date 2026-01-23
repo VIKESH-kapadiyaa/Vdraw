@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { useStore } from "@/lib/store";
+import { useStore, WindowType } from "@/lib/store";
 import FloatingWindow from "@/components/ui/FloatingWindow";
 import BookBrowser from "../tools/BookBrowser";
 import PhysicsWidget from "../tools/PhysicsWidget";
@@ -64,7 +64,7 @@ export default function OSLayout({ excalidrawAPI, channel }: OSLayoutProps) {
             {/* Diagram Builder Window */}
             {openWindows.includes('diagrams') && (
                 <FloatingWindow
-                    id="diagrams"
+                    id={"diagrams" as WindowType}
                     title="Diagram Builder"
                     icon={<Code className="w-4 h-4 text-pink-400" />}
                     defaultSize={{ w: 800, h: 500 }}
