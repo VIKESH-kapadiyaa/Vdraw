@@ -76,67 +76,99 @@ export default function DiagramBuilder({ excalidrawAPI }: DiagramBuilderProps) {
 
         try {
             const blob = new Blob([svgPreview], { type: 'image/svg+xml;charset=utf-8' });
+            const dataURL = await blobToDataURL(blob);
 
-            // We use the file API to insert cleanly
-            const fileId = Math.random().toString(36).substring(7);
-
-            // 1. Add File to cached files
-            // Can't easily use addFiles without a binary blob in some versions, but insertToScene handles it
-            if (excalidrawAPI.addFiles) {
-                // This part is tricky without a real file object, 
-                // but the simpler "image" element insertion below works best for SVGs
-            }
-
-            // 2. Insert Element
-            // We need to parse the SVG dimensions
+            // Parse Dimensions from SVG or generic fallback
             const parser = new DOMParser();
             const doc = parser.parseFromString(svgPreview, "image/svg+xml");
             const svgEl = doc.querySelector("svg");
-            const w = svgEl ? parseInt(svgEl.getAttribute("width") || "300") : 300;
-            const h = svgEl ? parseInt(svgEl.getAttribute("height") || "200") : 200;
+
+            // Initial fallback size
+            let w = 300;
+            let h = 200;
+
+            if (svgEl) {
+                // Try to get explicit width/height
+                const rawW = svgEl.getAttribute("width");
+                const rawH = svgEl.getAttribute("height");
+                // Try to get viewBox if width/height missing
+                const viewBox = svgEl.getAttribute("viewBox");
+
+                if (rawW && rawH) {
+                    w = parseFloat(rawW) || 300;
+                    h = parseFloat(rawH) || 200;
+                } else if (viewBox) {
+                    const parts = viewBox.split(" ").map(parseFloat);
+                    if (parts.length === 4) {
+                        w = parts[2];
+                        h = parts[3];
+                    }
+                }
+            }
+
+            // Generate IDs
+            const fileId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+                ? crypto.randomUUID()
+                : Math.random().toString(36).substring(2, 15);
 
             // Center of screen
             const appState = excalidrawAPI.getAppState();
             const cx = appState.scrollX + (appState.width || window.innerWidth) / 2;
             const cy = appState.scrollY + (appState.height || window.innerHeight) / 2;
 
-            // We insert as a simplified SVG string data URL or rely on Excalidraw's magic
-            // Using createObjectURL is safest
-            const url = URL.createObjectURL(blob);
-
-            // We will try insertToScene from the API which handles the file creation automatically usually
-            // But we need to define the type
-
-            // Hack: Emulate a file drop
-            // We use the same logic we fixed in Whiteboard.tsx
-            const img = new Image();
-            img.onload = async () => {
-                // Insert
-                const element = {
-                    type: "image",
-                    x: cx - w / 2,
-                    y: cy - h / 2,
-                    width: w,
-                    height: h,
-                    strokeColor: "transparent",
-                    backgroundColor: "transparent",
-                };
-                // @ts-ignore
-                await excalidrawAPI.addFiles([{ id: fileId, mimeType: "image/svg+xml", dataURL: await blobToDataURL(blob), created: Date.now() }]);
-
-                excalidrawAPI.updateScene({
-                    elements: [
-                        ...excalidrawAPI.getSceneElements(),
-                        { ...element, fileId, status: "saved", type: "image" }
-                    ]
-                });
-                URL.revokeObjectURL(url);
-                closeWindow('diagrams');
-                toast.success("Diagram Added");
+            // Construct the Excalidraw Image Element
+            const element = {
+                type: "image",
+                fileId: fileId,
+                status: "saved",
+                x: cx - w / 2,
+                y: cy - h / 2,
+                width: w,
+                height: h,
+                angle: 0,
+                strokeColor: "transparent",
+                backgroundColor: "transparent",
+                fillStyle: "hachure",
+                strokeWidth: 1,
+                strokeStyle: "solid",
+                roughness: 1,
+                opacity: 100,
+                groupIds: [],
+                seed: Date.now(),
+                version: 1,
+                versionNonce: Date.now(),
+                isDeleted: false,
+                boundElements: null,
+                updated: Date.now(),
+                link: null,
+                locked: false,
             };
-            img.src = url;
+
+            // Add the File Data
+            const fileData = {
+                id: fileId,
+                mimeType: "image/svg+xml",
+                dataURL: dataURL,
+                created: Date.now(),
+                lastRetrieved: Date.now()
+            };
+
+            if (excalidrawAPI.addFiles) {
+                excalidrawAPI.addFiles([fileData]);
+            }
+
+            // Update Scene
+            excalidrawAPI.updateScene({
+                elements: [...excalidrawAPI.getSceneElements(), element],
+                appState: { ...appState, activeTool: { type: "selection" } },
+                commitToHistory: true
+            });
+
+            closeWindow('diagrams');
+            toast.success("Diagram Added");
 
         } catch (e: any) {
+            console.error(e);
             toast.error("Failed to insert: " + e.message);
         }
     };
