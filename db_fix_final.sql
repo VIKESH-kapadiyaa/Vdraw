@@ -23,14 +23,14 @@ END $$;
 -- 2. Reset RLS Policies to ensure they are correct
 ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Users can view own rooms" ON public.rooms;
-CREATE POLICY "Users can view own rooms" ON public.rooms FOR SELECT USING (auth.uid() = owner_id);
+DROP POLICY IF EXISTS "Public can view rooms" ON public.rooms;
+CREATE POLICY "Public can view rooms" ON public.rooms FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "Users can create own rooms" ON public.rooms;
-CREATE POLICY "Users can create own rooms" ON public.rooms FOR INSERT WITH CHECK (auth.uid() = owner_id);
+DROP POLICY IF EXISTS "Public can create rooms" ON public.rooms;
+CREATE POLICY "Public can create rooms" ON public.rooms FOR INSERT WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Users can update own rooms" ON public.rooms;
-CREATE POLICY "Users can update own rooms" ON public.rooms FOR UPDATE USING (auth.uid() = owner_id);
+DROP POLICY IF EXISTS "Public can update rooms" ON public.rooms;
+CREATE POLICY "Public can update rooms" ON public.rooms FOR UPDATE USING (true);
 
 DROP POLICY IF EXISTS "Users can delete own rooms" ON public.rooms;
 CREATE POLICY "Users can delete own rooms" ON public.rooms FOR DELETE USING (auth.uid() = owner_id);

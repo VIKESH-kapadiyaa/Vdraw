@@ -107,8 +107,6 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     const loadData = useCallback(async (api: any, id: string) => {
         if (!api || !id) return;
         // Fetch from 'rooms' table (SaaS Architecture)
-        // Fetch from 'rooms' table (SaaS Architecture)
-        // usage of maybeSingle prevents 406 error if row doesn't exist
         const { data, error } = await supabase.from("rooms").select("scene_data").eq("id", id).maybeSingle();
 
         const isMobile = window.innerWidth < 768;
@@ -118,6 +116,12 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
 
         if (error || !data) {
             // New room or error
+            // Need to ensure room exists for future saves
+            const { error: insertError } = await supabase.from("rooms").insert([{ id: id, name: "Untitled Board" }]);
+            if (insertError) {
+                console.error("Failed to create room:", insertError);
+            }
+
             if (api.getSceneElements().length === 0) {
                 api.updateScene({ elements: [], appState: { ...api.getAppState(), collaborators: [], theme: "dark", ...mobileOverrides } });
             }
@@ -286,10 +290,11 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
         try {
             // Cloud Persistence (Vdraw Pro Feature)
             // Saves to 'rooms' table which users manage in Dashboard
-            const { error } = await supabase.from("rooms").update({
+            const { error } = await supabase.from("rooms").upsert({
+                id: id,
                 scene_data: { elements, appState: { ...appState, collaborators: [] } },
                 updated_at: new Date().toISOString()
-            }).eq('id', id);
+            }, { onConflict: 'id' });
 
             if (error) {
                 console.error("Supabase Save Error:", error);
@@ -297,8 +302,12 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
                     // Handle specific 406 error if needed, usually schema mismatch
                     console.warn("Schema mismatch detected. Check Supabase 'scene_data' column type.");
                 }
+                // Optional: Toast error if save fails frequently, but don't spam
+                // toast.error("Changes not saved to server");
             }
-        } catch (e) { console.error("Save execution error", e); }
+        } catch (e) {
+            console.error("Save execution error", e);
+        }
     };
 
     const broadcastData = async (channel: any, elements: any[], appState: any, versionsRef: any, receivingRef: any) => {
