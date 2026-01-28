@@ -30,9 +30,13 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
     // Feature Flags & States
     const { toggleWindow, openWindow } = useStore();
     const [isRoomLocked, setIsRoomLocked] = useState(false);
+    const lockRef = useRef(isRoomLocked); // Track lock state for comparison
     const [activeTool, setActiveTool] = useState<any>({ type: "selection" });
     const isLowBandwidth = useBandwidth();
     const [showOnboarding, setShowOnboarding] = useState(false);
+
+    // Sync Ref
+    useEffect(() => { lockRef.current = isRoomLocked; }, [isRoomLocked]);
 
     // Access Control State
     const [isHost, setIsHost] = useState(false);
@@ -229,6 +233,10 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
             // Listen for Lock Status Changes
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
                 const newStatus = payload.new.is_locked;
+
+                // Prevent duplicate notifications
+                if (newStatus === lockRef.current) return;
+
                 setIsRoomLocked(newStatus);
                 if (newStatus) {
                     toast("Classroom Locked", { description: "Teacher has enabled master control.", icon: <Lock className="w-4 h-4 text-orange-400" /> });
