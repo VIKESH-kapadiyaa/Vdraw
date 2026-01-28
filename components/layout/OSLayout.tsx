@@ -12,9 +12,10 @@ import TeacherControl from "../tools/TeacherControl";
 interface OSLayoutProps {
     excalidrawAPI: any;
     channel?: any;
+    roomId?: string;
 }
 
-export default function OSLayout({ excalidrawAPI, channel }: OSLayoutProps) {
+export default function OSLayout({ excalidrawAPI, channel, roomId }: OSLayoutProps) {
     const { openWindows } = useStore();
 
     return (
@@ -57,7 +58,7 @@ export default function OSLayout({ excalidrawAPI, channel }: OSLayoutProps) {
                     defaultSize={{ w: 350, h: 420 }}
                     initialPos={{ x: window.innerWidth - 400, y: 100 }}
                 >
-                    <TeacherControl channel={channel} />
+                    <TeacherControl channel={channel} roomId={roomId} />
                 </FloatingWindow>
             )}
 

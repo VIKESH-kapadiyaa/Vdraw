@@ -709,7 +709,7 @@ export default function Whiteboard({ roomId }: { roomId: string }) {
             </div>
 
             <CommandDock excalidrawAPI={excalidrawAPI} activeTool={activeTool} />
-            <OSLayout excalidrawAPI={excalidrawAPI} channel={channelRef.current} />
+            <OSLayout excalidrawAPI={excalidrawAPI} channel={channelRef.current} roomId={roomId} />
             <OnboardingTour isOpen={showOnboarding} onClose={() => { setShowOnboarding(false); localStorage.setItem('vdraw-onboarding-completed', 'true'); }} />
         </div>
     );

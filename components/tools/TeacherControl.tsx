@@ -15,7 +15,7 @@ const broadcastCommand = async (channel: any, command: string, value: any) => {
     });
 };
 
-export default function TeacherControl({ channel }: { channel: any }) {
+export default function TeacherControl({ channel, roomId }: { channel: any, roomId?: string }) {
     const {
         isRoomLocked, setRoomLock,
         isFocusMode, setFocusMode,
@@ -27,6 +27,11 @@ export default function TeacherControl({ channel }: { channel: any }) {
         setRoomLock(newVal);
         broadcastCommand(channel, 'set-lock', newVal);
         toast.info(newVal ? "Classroom Locked (Read-Only)" : "Classroom Unlocked");
+
+        if (roomId) {
+            const { error } = await supabase.from('rooms').update({ is_locked: newVal }).eq('id', roomId);
+            if (error) console.error("Failed to persist lock state:", error);
+        }
     };
 
     const handleFocusToggle = async () => {
